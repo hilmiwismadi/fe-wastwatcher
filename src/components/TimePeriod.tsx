@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
 import { Calendar, ChevronDown } from "lucide-react";
+import { TimeRangeSelector, TimeRange } from './TimeRangeSelector';
 
 interface TimePeriodProps {
   startDate: string;
   startTime: string;
   endDate: string;
   endTime: string;
+  timeRange: TimeRange;
   onStartDateChange: (date: string) => void;
   onStartTimeChange: (time: string) => void;
   onEndDateChange: (date: string) => void;
   onEndTimeChange: (time: string) => void;
+  onTimeRangeChange: (range: TimeRange) => void;
   onApply: () => void;
 }
 
@@ -18,10 +21,12 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
   startTime,
   endDate,
   endTime,
+  timeRange,
   onStartDateChange,
   onStartTimeChange,
   onEndDateChange,
   onEndTimeChange,
+  onTimeRangeChange,
   onApply,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -64,6 +69,15 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
         
         {isExpanded && (
           <div className="p-3 pt-0 space-y-3 border-t">
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-blue-800">Quick Range</label>
+              <TimeRangeSelector
+                selectedRange={timeRange}
+                onRangeChange={onTimeRangeChange}
+                className="justify-start"
+              />
+            </div>
+
             <div className="space-y-2">
               <label className="block text-xs font-medium text-blue-800">Start</label>
               <div className="space-y-2">
@@ -115,14 +129,21 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
 
       {/* Desktop View with Improved Layout */}
       <div className="hidden sm:block p-3">
-        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-3 gap-2">
-          <h3 className="text-sm font-bold text-gray-800 flex items-center gap-1 flex-shrink-0">
-            <Calendar className="w-3 h-3 text-blue-600" />
-            Time Period
-          </h3>
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-3 gap-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1">
+            <h3 className="text-sm font-bold text-gray-800 flex items-center gap-1 flex-shrink-0">
+              <Calendar className="w-3 h-3 text-blue-600" />
+              Time Period
+            </h3>
+            <TimeRangeSelector
+              selectedRange={timeRange}
+              onRangeChange={onTimeRangeChange}
+              className="justify-start"
+            />
+          </div>
           <button
             onClick={onApply}
-            className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-3 py-1.5 rounded-md font-medium hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm text-xs xl:flex-shrink-0"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-3 py-1.5 rounded-md font-medium hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm text-xs flex-shrink-0"
           >
             Apply
           </button>

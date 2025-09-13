@@ -11,13 +11,14 @@ import {
 
 import { Header } from './Header';
 import { TimePeriod } from './TimePeriod';
+import { TimeRangeSelector, TimeRange } from './TimeRangeSelector';
 import { ToggleButton } from './ToggleButton';
 import { ChartComponent } from './ChartComponent';
 import { BarChart } from './BarChart';
 import { TouchCarousel } from './TouchCarousel';
 import { useApiTrashData } from '../hooks/useApiTrashData';
 import { trashBinName, batteryPercentage, condition } from '../data/mockData';
-import { getDefaultDateRange, combineDateAndTime } from '../utils/dateUtils';
+import { getDefaultDateRange, combineDateAndTime, getTimeRangeDate } from '../utils/dateUtils';
 
 const TrashBinDashboard = () => {
   // Initialize with default date range
@@ -25,6 +26,7 @@ const TrashBinDashboard = () => {
 
   // State management
   const [currentBinIndex, setCurrentBinIndex] = useState(0);
+  const [timeRange, setTimeRange] = useState<TimeRange>('daily');
 
   // UI State (what user sees in the form)
   const [startDate, setStartDate] = useState(defaultRange.startDate);
@@ -68,6 +70,25 @@ const TrashBinDashboard = () => {
     getDonutData,
     isAnyBinFull,
   } = useApiTrashData(apiStartDate, apiEndDate);
+
+  const handleTimeRangeChange = (newTimeRange: TimeRange) => {
+    setTimeRange(newTimeRange);
+    const newRange = getTimeRangeDate(newTimeRange);
+
+    // Update UI state with new range
+    setStartDate(newRange.startDate);
+    setStartTime(newRange.startTime);
+    setEndDate(newRange.endDate);
+    setEndTime(newRange.endTime);
+
+    // Auto-apply the new range
+    setAppliedStartDate(newRange.startDate);
+    setAppliedStartTime(newRange.startTime);
+    setAppliedEndDate(newRange.endDate);
+    setAppliedEndTime(newRange.endTime);
+
+    console.log("Time range changed to:", newTimeRange, newRange);
+  };
 
   const handleApplyDateRange = () => {
     // Apply the UI state to the applied state, which will trigger API re-fetch
@@ -233,10 +254,12 @@ const TrashBinDashboard = () => {
             startTime={startTime}
             endDate={endDate}
             endTime={endTime}
+            timeRange={timeRange}
             onStartDateChange={setStartDate}
             onStartTimeChange={setStartTime}
             onEndDateChange={setEndDate}
             onEndTimeChange={setEndTime}
+            onTimeRangeChange={handleTimeRangeChange}
             onApply={handleApplyDateRange}
           />
 
