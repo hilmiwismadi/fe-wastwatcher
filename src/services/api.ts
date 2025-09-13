@@ -101,6 +101,27 @@ export interface LocationAnalytics {
   bins_need_collection: number;
 }
 
+export interface DeviceStatistics {
+  total_devices: number;
+  active_devices: number;
+  inactive_devices: number;
+  maintenance_devices: number;
+}
+
+export interface RealTimeData {
+  timestamp: string;
+  weight_kg: number;
+  fill_percentage: number;
+  temperature: number;
+  humidity: number;
+}
+
+export interface TrendData {
+  date: string;
+  value: number;
+  category?: string;
+}
+
 class ApiService {
   private async fetchApi<T>(endpoint: string): Promise<ApiResponse<T>> {
     try {
@@ -158,8 +179,8 @@ class ApiService {
     return this.fetchApi<Device[]>('/api/devices/health');
   }
 
-  async getDeviceStatistics(): Promise<ApiResponse<any>> {
-    return this.fetchApi<any>('/api/devices/statistics');
+  async getDeviceStatistics(): Promise<ApiResponse<DeviceStatistics>> {
+    return this.fetchApi<DeviceStatistics>('/api/devices/statistics');
   }
 
   // Analytics
@@ -199,24 +220,24 @@ class ApiService {
     return this.fetchApi<LocationAnalytics[]>('/api/analytics/locations');
   }
 
-  async getRealTimeData(deviceId: string, hours?: number): Promise<ApiResponse<any[]>> {
+  async getRealTimeData(deviceId: string, hours?: number): Promise<ApiResponse<RealTimeData[]>> {
     const query = hours ? `?hours=${hours}` : '';
-    return this.fetchApi<any[]>(`/api/analytics/devices/${deviceId}/realtime${query}`);
+    return this.fetchApi<RealTimeData[]>(`/api/analytics/devices/${deviceId}/realtime${query}`);
   }
 
-  async getCollectionTrends(days?: number): Promise<ApiResponse<any[]>> {
+  async getCollectionTrends(days?: number): Promise<ApiResponse<TrendData[]>> {
     const query = days ? `?days=${days}` : '';
-    return this.fetchApi<any[]>(`/api/analytics/collection-trends${query}`);
+    return this.fetchApi<TrendData[]>(`/api/analytics/collection-trends${query}`);
   }
 
-  async getDeviceHealthTrends(days?: number): Promise<ApiResponse<any[]>> {
+  async getDeviceHealthTrends(days?: number): Promise<ApiResponse<TrendData[]>> {
     const query = days ? `?days=${days}` : '';
-    return this.fetchApi<any[]>(`/api/analytics/health-trends${query}`);
+    return this.fetchApi<TrendData[]>(`/api/analytics/health-trends${query}`);
   }
 
-  async getAlertStatistics(days?: number): Promise<ApiResponse<any[]>> {
+  async getAlertStatistics(days?: number): Promise<ApiResponse<TrendData[]>> {
     const query = days ? `?days=${days}` : '';
-    return this.fetchApi<any[]>(`/api/analytics/alert-statistics${query}`);
+    return this.fetchApi<TrendData[]>(`/api/analytics/alert-statistics${query}`);
   }
 }
 

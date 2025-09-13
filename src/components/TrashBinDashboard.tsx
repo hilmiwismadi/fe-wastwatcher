@@ -11,7 +11,7 @@ import {
 
 import { Header } from './Header';
 import { TimePeriod } from './TimePeriod';
-import { TimeRangeSelector, TimeRange } from './TimeRangeSelector';
+import { TimeRange } from './TimeRangeSelector';
 import { ToggleButton } from './ToggleButton';
 import { ChartComponent } from './ChartComponent';
 import { BarChart } from './BarChart';

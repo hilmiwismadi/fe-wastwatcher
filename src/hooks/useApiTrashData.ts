@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { TrashData, ChartData, CurrentSpecific, ToggleType } from '../types';
 import { apiService, WasteDistribution, DailyAnalytics, TrashBinWithStatus } from '../services/api';
 
@@ -20,7 +20,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
   const [trashBinsStatus, setTrashBinsStatus] = useState<TrashBinWithStatus[]>([]);
 
   // Fetch data from API
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -49,11 +49,11 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate, endDate]);
 
   useEffect(() => {
     fetchData();
-  }, [startDate, endDate]);
+  }, [fetchData]);
 
   // Calculate current values from API data (using today's/latest data)
   const currentWeight: TrashData = useMemo(() => {
@@ -62,7 +62,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
 
     if (latestData) {
       // For weight, use today's actual data divided by category estimates
-      const totalWeight = parseFloat(latestData.avg_weight);
+      const totalWeight = Number(latestData.avg_weight);
       return {
         organic: Math.round(totalWeight * 0.5 * 10) / 10, // Approximate: 50% organic
         anorganic: Math.round(totalWeight * 0.3 * 10) / 10, // Approximate: 30% inorganic
@@ -71,9 +71,9 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
     }
 
     // Fallback to waste distribution averages if no daily data
-    const organic = Math.round(parseFloat(wasteDistribution.find(w => w.category === 'Organic')?.avg_weight || '0') * 10) / 10;
-    const inorganic = Math.round(parseFloat(wasteDistribution.find(w => w.category === 'Inorganic')?.avg_weight || '0') * 10) / 10;
-    const b3 = Math.round(parseFloat(wasteDistribution.find(w => w.category === 'B3')?.avg_weight || '0') * 10) / 10;
+    const organic = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Organic')?.avg_weight || '0')) * 10) / 10;
+    const inorganic = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Inorganic')?.avg_weight || '0')) * 10) / 10;
+    const b3 = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'B3')?.avg_weight || '0')) * 10) / 10;
 
     return {
       organic,
@@ -88,7 +88,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
 
     if (latestData) {
       // For volume, use today's actual volume data divided by category estimates
-      const totalVolume = parseFloat(latestData.avg_volume);
+      const totalVolume = Number(latestData.avg_volume);
       return {
         organic: Math.round(totalVolume * 0.45 * 10) / 10, // Approximate: 45% organic
         anorganic: Math.round(totalVolume * 0.35 * 10) / 10, // Approximate: 35% inorganic
@@ -98,9 +98,9 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
     }
 
     // Fallback to waste distribution averages if no daily data
-    const organic = Math.round(parseFloat(wasteDistribution.find(w => w.category === 'Organic')?.avg_fill_percentage || '0') * 10) / 10;
-    const inorganic = Math.round(parseFloat(wasteDistribution.find(w => w.category === 'Inorganic')?.avg_fill_percentage || '0') * 10) / 10;
-    const b3 = Math.round(parseFloat(wasteDistribution.find(w => w.category === 'B3')?.avg_fill_percentage || '0') * 10) / 10;
+    const organic = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Organic')?.avg_fill_percentage || '0')) * 10) / 10;
+    const inorganic = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Inorganic')?.avg_fill_percentage || '0')) * 10) / 10;
+    const b3 = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'B3')?.avg_fill_percentage || '0')) * 10) / 10;
 
     return {
       organic,
