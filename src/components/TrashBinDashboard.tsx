@@ -15,19 +15,37 @@ import { ToggleButton } from './ToggleButton';
 import { ChartComponent } from './ChartComponent';
 import { BarChart } from './BarChart';
 import { TouchCarousel } from './TouchCarousel';
-import { useTrashData } from '../hooks/useTrashData';
+import { useApiTrashData } from '../hooks/useApiTrashData';
 import { trashBinName, batteryPercentage, condition } from '../data/mockData';
+import { getDefaultDateRange, combineDateAndTime } from '../utils/dateUtils';
 
 const TrashBinDashboard = () => {
+  // Initialize with default date range
+  const defaultRange = getDefaultDateRange();
+
   // State management
   const [currentBinIndex, setCurrentBinIndex] = useState(0);
-  const [startDate, setStartDate] = useState("2025-01-25");
-  const [startTime, setStartTime] = useState("10:00");
-  const [endDate, setEndDate] = useState("2025-01-25");
-  const [endTime, setEndTime] = useState("18:00");
 
-  // Custom hook for trash data
+  // UI State (what user sees in the form)
+  const [startDate, setStartDate] = useState(defaultRange.startDate);
+  const [startTime, setStartTime] = useState(defaultRange.startTime);
+  const [endDate, setEndDate] = useState(defaultRange.endDate);
+  const [endTime, setEndTime] = useState(defaultRange.endTime);
+
+  // Applied State (what actually gets sent to API)
+  const [appliedStartDate, setAppliedStartDate] = useState(defaultRange.startDate);
+  const [appliedStartTime, setAppliedStartTime] = useState(defaultRange.startTime);
+  const [appliedEndDate, setAppliedEndDate] = useState(defaultRange.endDate);
+  const [appliedEndTime, setAppliedEndTime] = useState(defaultRange.endTime);
+
+  // Create API date range parameters from applied state
+  const apiStartDate = combineDateAndTime(appliedStartDate, appliedStartTime);
+  const apiEndDate = combineDateAndTime(appliedEndDate, appliedEndTime);
+
+  // Custom hook for trash data from API
   const {
+    loading,
+    error,
     compositionToggle,
     setCompositionToggle,
     totalToggle,
@@ -49,10 +67,21 @@ const TrashBinDashboard = () => {
     getVolumeBarData,
     getDonutData,
     isAnyBinFull,
-  } = useTrashData();
+  } = useApiTrashData(apiStartDate, apiEndDate);
 
   const handleApplyDateRange = () => {
-    console.log("Date range applied:", { startDate, startTime, endDate, endTime });
+    // Apply the UI state to the applied state, which will trigger API re-fetch
+    setAppliedStartDate(startDate);
+    setAppliedStartTime(startTime);
+    setAppliedEndDate(endDate);
+    setAppliedEndTime(endTime);
+
+    console.log("Date range applied:", {
+      startDate,
+      startTime,
+      endDate,
+      endTime
+    });
   };
 
   const handleExport = () => {
@@ -154,6 +183,37 @@ const TrashBinDashboard = () => {
       </div>
     </div>
   );
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-lg text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-lg shadow-lg">
+          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Error Loading Data</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 p-2 sm:p-4 overflow-auto">
