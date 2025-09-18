@@ -1,5 +1,8 @@
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+// Use mock data in production when no API URL is configured or when API is unavailable
+const USE_MOCK_DATA = (process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_API_URL) ||
+                      (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'));
 
 // API Response Types
 export interface ApiResponse<T> {
@@ -124,6 +127,26 @@ export interface TrendData {
 
 class ApiService {
   private async fetchApi<T>(endpoint: string): Promise<ApiResponse<T>> {
+    // Use mock data if in production without API URL
+    if (USE_MOCK_DATA) {
+      const { mockWasteDistribution, mockDailyAnalytics, mockTrashBinsWithStatus } = await import('./mockData');
+
+      // Return appropriate mock data based on endpoint
+      if (endpoint.includes('/waste-distribution')) {
+        return mockWasteDistribution as ApiResponse<T>;
+      } else if (endpoint.includes('/daily')) {
+        return mockDailyAnalytics as ApiResponse<T>;
+      } else if (endpoint.includes('/trash-bins/status')) {
+        return mockTrashBinsWithStatus as ApiResponse<T>;
+      }
+
+      // Default empty response for other endpoints
+      return {
+        success: true,
+        data: [] as T
+      };
+    }
+
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`);
 
