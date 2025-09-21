@@ -239,65 +239,67 @@ const TrashBinDashboard = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 p-2 sm:p-4 overflow-auto">
       <div className="max-w-full mx-auto flex flex-col gap-2 sm:gap-4">
-        {/* Header */}
-        <Header
-          trashBinName={trashBinName}
-          batteryPercentage={batteryPercentage}
-          onExport={handleExport}
-        />
-
-        {/* 1st Row: Time Period + Current Status */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
-          {/* Time Period */}
-          <TimePeriod
-            startDate={startDate}
-            startTime={startTime}
-            endDate={endDate}
-            endTime={endTime}
-            timeRange={timeRange}
-            onStartDateChange={setStartDate}
-            onStartTimeChange={setStartTime}
-            onEndDateChange={setEndDate}
-            onEndTimeChange={setEndTime}
-            onTimeRangeChange={handleTimeRangeChange}
-            onApply={handleApplyDateRange}
-          />
-
-          {/* Current Status */}
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-2 sm:p-3 rounded-lg shadow-sm border border-blue-200">
-            <h3 className="text-sm font-bold mb-2 text-blue-800 flex items-center gap-1">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              Current Status
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div className="bg-white p-2 rounded-lg shadow-sm border border-blue-100 sm:col-span-1">
-                <div className="flex items-center gap-1 mb-1">
-                  <AlertCircle className="w-3 h-3 text-blue-600" />
-                  <span className="text-xs font-medium text-gray-700">Status</span>
-                </div>
-                <p className="text-xs text-gray-800 font-medium leading-tight">{condition}</p>
+        {/* Clean Header */}
+        <div className="bg-white p-2 sm:p-3 rounded-lg shadow-sm border">
+          <div className="flex items-center justify-between">
+            {/* Left: Title + Battery */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="group relative">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-800 cursor-pointer">
+                  {trashBinName}
+                </h1>
+                {/* Export button on hover */}
+                <button
+                  onClick={handleExport}
+                  className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 bg-blue-500 text-white px-2 py-1 rounded text-xs transition-all transform translate-x-full group-hover:translate-x-0"
+                >
+                  Export
+                </button>
               </div>
-
-              <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-2 rounded-lg shadow-sm text-white text-center sm:col-span-1">
-                <h4 className="font-medium text-blue-100 text-xs">Weight</h4>
-                <p className="text-lg font-bold leading-tight">{currentTotals.weight}</p>
-                <p className="text-blue-200 text-xs">grams</p>
-              </div>
-
-              <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 p-2 rounded-lg shadow-sm text-white text-center sm:col-span-1">
-                <h4 className="font-medium text-indigo-100 text-xs">Volume</h4>
-                <p className="text-lg font-bold leading-tight">{currentTotals.volume}%</p>
-                <p className="text-indigo-200 text-xs">capacity</p>
+              <div className="flex items-center gap-1 bg-green-100 px-2 py-1 rounded-full">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-xs font-medium text-green-700">{batteryPercentage}%</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* 2nd Row: Composition + Total Graph */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-4">
+        {/* Row 1: Current Status + Composition (Current Info) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-4">
+          {/* Current Status */}
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-2 sm:p-3 rounded-lg shadow-sm border border-blue-200 h-48">
+            <h3 className="text-sm font-bold mb-3 text-blue-800 flex items-center gap-1">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              Current Status
+            </h3>
+            <div className="space-y-2">
+              <div className="bg-white p-2 rounded-lg shadow-sm border border-blue-100">
+                <div className="flex items-center gap-1 mb-1">
+                  <AlertCircle className="w-3 h-3 text-blue-600" />
+                  <span className="text-xs font-medium text-gray-700">Status</span>
+                </div>
+                <p className="text-sm text-gray-800 font-medium">{condition}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-2 rounded-lg text-white text-center">
+                  <h4 className="font-medium text-blue-100 text-xs">Weight</h4>
+                  <p className="text-lg font-bold">{currentTotals.weight}</p>
+                  <p className="text-blue-200 text-xs">grams</p>
+                </div>
+
+                <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 p-2 rounded-lg text-white text-center">
+                  <h4 className="font-medium text-indigo-100 text-xs">Volume</h4>
+                  <p className="text-lg font-bold">{currentTotals.volume}%</p>
+                  <p className="text-indigo-200 text-xs">capacity</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Composition */}
-          <div className="bg-white p-2 sm:p-3 rounded-lg shadow-sm border lg:col-span-1">
-            <div className="flex justify-between items-center mb-2">
+          <div className="bg-white p-2 sm:p-3 rounded-lg shadow-sm border">
+            <div className="flex justify-between items-center mb-1">
               <h3 className="text-sm font-bold text-gray-800">Composition</h3>
               <ToggleButton
                 value={compositionToggle}
@@ -306,79 +308,93 @@ const TrashBinDashboard = () => {
               />
             </div>
 
-            {compositionToggle === "weight" ? (
-              // Weight - Donut Chart
-              <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 items-center">
-                <div className="sm:col-span-2 space-y-1">
-                  {getDonutData().map((item, index) => (
-                    <div
-                      key={item.name}
-                      className={`flex items-center justify-between p-1 rounded cursor-pointer transition-all ${
-                        selectedSlice === index ? "bg-blue-50 scale-[1.02]" : "hover:bg-gray-50"
-                      }`}
-                      onClick={() => setSelectedSlice(index)}
-                    >
-                      <div className="flex items-center gap-1">
-                        <div
-                          className="w-2 h-2 rounded-full"
-                          style={{ backgroundColor: item.color }}
-                        />
-                        <span className="text-xs font-medium text-gray-800">{item.name}</span>
-                      </div>
-                      <span
-                        className={`text-xs font-bold ${selectedSlice === index ? "text-black" : ""}`}
-                        style={{ color: item.color }}
+            <div className="h-48"> {/* Increased height for bigger donut chart */}
+              {compositionToggle === "weight" ? (
+                // Weight - Donut Chart with 50/50 split
+                <div className="grid grid-cols-2 gap-3 items-start h-full">
+                  <div className="space-y-1 pt-2">
+                    {getDonutData().map((item, index) => (
+                      <div
+                        key={item.name}
+                        className={`flex items-start justify-between p-1 rounded cursor-pointer transition-all ${
+                          selectedSlice === index ? "bg-blue-50" : "hover:bg-gray-50"
+                        }`}
+                        onClick={() => setSelectedSlice(index)}
                       >
-                        {item.value}g
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="sm:col-span-3 flex justify-center">
-                  <ResponsiveContainer width={160} height={160}>
-                    <PieChart>
-                      <Pie
-                        data={getDonutData()}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={selectedSlice !== null ? 40 : 45}
-                        outerRadius={selectedSlice !== null ? 75 : 70}
-                        dataKey="value"
-                        onMouseEnter={(_, index) => setSelectedSlice(index)}
-                        onMouseLeave={() => setSelectedSlice(null)}
-                      >
-                        {getDonutData().map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={entry.color}
-                            stroke={selectedSlice === index ? "#000" : "none"}
-                            strokeWidth={selectedSlice === index ? 3 : 0}
-                            style={{
-                              filter: selectedSlice === index ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' : 'none',
-                              transform: selectedSlice === index ? 'scale(1.05)' : 'scale(1)',
-                              transformOrigin: 'center',
-                              transition: 'all 0.2s ease-in-out'
-                            }}
+                        <div className="flex items-start gap-1">
+                          <div
+                            className="w-2 h-2 rounded-full mt-0.5"
+                            style={{ backgroundColor: item.color }}
                           />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
+                          <span className="text-xs font-medium text-gray-800">{item.name}</span>
+                        </div>
+                        <span className="text-xs font-bold" style={{ color: item.color }}>
+                          {item.value}g
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-center items-center h-full">
+                    <ResponsiveContainer width={180} height={180}>
+                      <PieChart>
+                        <Pie
+                          data={getDonutData()}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={45}
+                          outerRadius={80}
+                          dataKey="value"
+                          onMouseEnter={(_, index) => setSelectedSlice(index)}
+                          onMouseLeave={() => setSelectedSlice(null)}
+                        >
+                          {getDonutData().map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={entry.color}
+                              stroke={selectedSlice === index ? "#000" : "none"}
+                              strokeWidth={selectedSlice === index ? 2 : 0}
+                            />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              // Volume - Bar Chart
-              <BarChart
-                data={getVolumeBarData()}
-                selectedIndex={selectedSlice}
-                onBarHover={setSelectedSlice}
-              />
-            )}
+              ) : (
+                // Volume - Bar Chart
+                <div className="h-full">
+                  <BarChart
+                    data={getVolumeBarData()}
+                    selectedIndex={selectedSlice}
+                    onBarHover={setSelectedSlice}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Time Period + Total Monitoring (Analytics) */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-2 sm:gap-4">
+          {/* Time Period */}
+          <div className="lg:col-span-2">
+            <TimePeriod
+              startDate={startDate}
+              startTime={startTime}
+              endDate={endDate}
+              endTime={endTime}
+              timeRange={timeRange}
+              onStartDateChange={setStartDate}
+              onStartTimeChange={setStartTime}
+              onEndDateChange={setEndDate}
+              onEndTimeChange={setEndTime}
+              onTimeRangeChange={handleTimeRangeChange}
+              onApply={handleApplyDateRange}
+            />
           </div>
 
-          {/* Total Graph */}
-          <div className="lg:col-span-2 bg-white p-2 sm:p-3 rounded-lg shadow-sm border">
+          {/* Total Monitoring */}
+          <div className="lg:col-span-3 bg-white p-2 sm:p-3 rounded-lg shadow-sm border">
             <div className="flex justify-between items-center mb-2">
               <h3 className="text-sm font-bold text-gray-800">Total Monitoring</h3>
               <ToggleButton

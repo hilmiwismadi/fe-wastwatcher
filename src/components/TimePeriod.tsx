@@ -149,43 +149,49 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Start */}
-          <div className="space-y-2">
-            <label className="block text-xs font-medium text-blue-800">Start</label>
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-2">
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => onStartDateChange(e.target.value)}
-                className="xl:col-span-2 w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-blue-800 min-w-0"
-              />
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => onStartTimeChange(e.target.value)}
-                className="xl:col-span-1 w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-blue-800 min-w-0"
-              />
-            </div>
+        <div className="space-y-2">
+          {/* Start Date */}
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-blue-800">Start Date</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => onStartDateChange(e.target.value)}
+              className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-blue-800"
+            />
           </div>
 
-          {/* End */}
-          <div className="space-y-2">
-            <label className="block text-xs font-medium text-blue-800">End</label>
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-2">
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => onEndDateChange(e.target.value)}
-                className="xl:col-span-2 w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-blue-800 min-w-0"
-              />
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => onEndTimeChange(e.target.value)}
-                className="xl:col-span-1 w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-blue-800 min-w-0"
-              />
-            </div>
+          {/* Start Time */}
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-blue-800">Start Time</label>
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => onStartTimeChange(e.target.value)}
+              className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-blue-800"
+            />
+          </div>
+
+          {/* End Date */}
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-blue-800">End Date</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => onEndDateChange(e.target.value)}
+              className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-blue-800"
+            />
+          </div>
+
+          {/* End Time */}
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-blue-800">End Time</label>
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => onEndTimeChange(e.target.value)}
+              className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-blue-800"
+            />
           </div>
         </div>
       </div>
