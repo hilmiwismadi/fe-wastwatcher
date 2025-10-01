@@ -23,7 +23,7 @@ export default function TestingMQTTPage() {
 
           // Update sensor 1 data
           if (result.sensors.sensor1 && result.sensors.sensor1.length > 0) {
-            setSensorData1(result.sensors.sensor1.map((item: any) => ({
+            setSensorData1(result.sensors.sensor1.map((item: { timestamp: string; value: number }) => ({
               timestamp: new Date(item.timestamp).toLocaleTimeString(),
               value: item.value
             })))
@@ -31,7 +31,7 @@ export default function TestingMQTTPage() {
 
           // Update sensor 2 data
           if (result.sensors.sensor2 && result.sensors.sensor2.length > 0) {
-            setSensorData2(result.sensors.sensor2.map((item: any) => ({
+            setSensorData2(result.sensors.sensor2.map((item: { timestamp: string; value: number }) => ({
               timestamp: new Date(item.timestamp).toLocaleTimeString(),
               value: item.value
             })))
@@ -202,7 +202,7 @@ export default function TestingMQTTPage() {
           <ul className="text-green-700 space-y-1">
             <li>• <strong>No WebSocket</strong> - Uses HTTP polling every second</li>
             <li>• MQTT data flows: Device → MQTT Broker → Backend Storage → HTTP API → Charts</li>
-            <li>• Your friend's device publishes to: <code className="bg-green-100 px-1 rounded">sensor/data</code></li>
+            <li>• Your friend&apos;s device publishes to: <code className="bg-green-100 px-1 rounded">sensor/data</code></li>
             <li>• Data format: <code className="bg-green-100 px-1 rounded">{`{"sensor": "sensor1", "value": 75.5}`}</code></li>
             <li>• Backend automatically stores MQTT data for HTTP polling</li>
             <li>• Charts update every second via REST API calls</li>

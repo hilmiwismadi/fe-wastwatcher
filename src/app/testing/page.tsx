@@ -206,8 +206,8 @@ export default function TestingPage() {
           <h3 className="text-lg font-semibold text-gray-800 mb-2">Instructions</h3>
           <ul className="text-gray-700 space-y-1">
             <li>• Backend server is running on port 5000 with WebSocket support</li>
-            <li>• Use "Start Simulation" to begin continuous data streaming</li>
-            <li>• Use "Send Test Data" for one-time data injection</li>
+            <li>• Use &quot;Start Simulation&quot; to begin continuous data streaming</li>
+            <li>• Use &quot;Send Test Data&quot; for one-time data injection</li>
             <li>• Connect your device to MQTT broker (optional) with topic: sensor/data</li>
             <li>• MQTT data format: {`{"sensor": "sensor1", "value": 123.45}`}</li>
             <li>• Charts show the last 20 data points with real-time updates</li>

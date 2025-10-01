@@ -9,7 +9,6 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-import { Header } from './Header';
 import { TimePeriod } from './TimePeriod';
 import { TimeRange } from './TimeRangeSelector';
 import { ToggleButton } from './ToggleButton';

@@ -82,6 +82,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
   // Fetch both current status and time-range data
   useEffect(() => {
     fetchCurrentStatus(); // Fetch current status once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
   useEffect(() => {
