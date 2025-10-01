@@ -131,11 +131,15 @@ class ApiService {
   private async fetchApi<T>(endpoint: string, retries = 3): Promise<ApiResponse<T>> {
     // Use mock data if in production without API URL
     if (USE_MOCK_DATA) {
-      const { mockWasteDistribution, mockDailyAnalytics, mockTrashBinsWithStatus } = await import('./mockData');
+      const { mockWasteDistribution, mockDailyAnalytics, mockTrashBinsWithStatus, mockFiveMinuteIntervalData, mockHourlyIntervalData } = await import('./mockData');
 
       // Return appropriate mock data based on endpoint
       if (endpoint.includes('/waste-distribution')) {
         return mockWasteDistribution as ApiResponse<T>;
+      } else if (endpoint.includes('/intervals/5-minute')) {
+        return mockFiveMinuteIntervalData as ApiResponse<T>;
+      } else if (endpoint.includes('/intervals/hourly')) {
+        return mockHourlyIntervalData as ApiResponse<T>;
       } else if (endpoint.includes('/daily')) {
         return mockDailyAnalytics as ApiResponse<T>;
       } else if (endpoint.includes('/trash-bins/status')) {

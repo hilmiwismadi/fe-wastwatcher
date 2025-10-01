@@ -46,6 +46,36 @@ export const mockDailyAnalytics: ApiResponse<DailyAnalytics[]> = {
   })
 };
 
+// Mock 5-minute interval data (for hourly view - 12 data points per hour)
+export const mockFiveMinuteIntervalData: ApiResponse<DailyAnalytics[]> = {
+  success: true,
+  data: Array.from({ length: 12 }, (_, i) => {
+    const date = new Date();
+    date.setMinutes(date.getMinutes() - ((11 - i) * 5));
+    return {
+      time_interval: date.toISOString(),
+      data_points: Math.floor(Math.random() * 10) + 5,
+      avg_weight: 2500 + Math.random() * 1000,
+      avg_volume: 50 + Math.random() * 30
+    };
+  })
+};
+
+// Mock hourly interval data (for daily view - 24 data points)
+export const mockHourlyIntervalData: ApiResponse<DailyAnalytics[]> = {
+  success: true,
+  data: Array.from({ length: 24 }, (_, i) => {
+    const date = new Date();
+    date.setHours(date.getHours() - (23 - i));
+    return {
+      time_interval: date.toISOString(),
+      data_points: Math.floor(Math.random() * 50) + 20,
+      avg_weight: 2500 + Math.random() * 1000,
+      avg_volume: 50 + Math.random() * 30
+    };
+  })
+};
+
 export const mockTrashBinsWithStatus: ApiResponse<TrashBinWithStatus[]> = {
   success: true,
   data: [
