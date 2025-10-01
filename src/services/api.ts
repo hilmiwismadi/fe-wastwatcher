@@ -70,14 +70,16 @@ export interface WasteDistribution {
 }
 
 export interface DailyAnalytics {
-  analysis_date: string;
-  device_count: number;
+  analysis_date?: string;
+  time_interval?: string;
+  device_count?: number;
+  data_points?: number;
   avg_weight: number;
-  max_weight: number;
+  max_weight?: number;
   avg_volume: number;
-  max_volume: number;
-  total_collections: number;
-  avg_density: number;
+  max_volume?: number;
+  total_collections?: number;
+  avg_density?: number;
 }
 
 export interface HourlyPattern {
@@ -126,7 +128,7 @@ export interface TrendData {
 }
 
 class ApiService {
-  private async fetchApi<T>(endpoint: string): Promise<ApiResponse<T>> {
+  private async fetchApi<T>(endpoint: string, retries = 3): Promise<ApiResponse<T>> {
     // Use mock data if in production without API URL
     if (USE_MOCK_DATA) {
       const { mockWasteDistribution, mockDailyAnalytics, mockTrashBinsWithStatus } = await import('./mockData');
@@ -147,19 +149,51 @@ class ApiService {
       };
     }
 
-    try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`);
+    let lastError: Error | null = null;
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          // Handle rate limiting with exponential backoff
+          if (response.status === 429 && attempt < retries - 1) {
+            const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+            console.warn(`Rate limited, retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        lastError = error as Error;
+
+        // If it's an abort error or network error, retry
+        if ((error instanceof Error && error.name === 'AbortError') ||
+            (error instanceof TypeError && error.message.includes('fetch'))) {
+          if (attempt < retries - 1) {
+            console.warn(`Request failed (attempt ${attempt + 1}/${retries}), retrying...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+            continue;
+          }
+        }
+
+        console.error(`API call failed for ${endpoint}:`, error);
+        throw error;
       }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error(`API call failed for ${endpoint}:`, error);
-      throw error;
     }
+
+    throw lastError || new Error('Request failed after retries');
   }
 
   // Health Check
@@ -233,6 +267,28 @@ class ApiService {
 
     const query = params.toString() ? `?${params.toString()}` : '';
     return this.fetchApi<HourlyPattern[]>(`/api/analytics/hourly-patterns${query}`);
+  }
+
+  async getFiveMinuteIntervalData(deviceId?: string, category?: string, startDate?: string, endDate?: string): Promise<ApiResponse<DailyAnalytics[]>> {
+    const params = new URLSearchParams();
+    if (deviceId) params.append('deviceId', deviceId);
+    if (category) params.append('category', category);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.fetchApi<DailyAnalytics[]>(`/api/analytics/intervals/5-minute${query}`);
+  }
+
+  async getHourlyIntervalData(deviceId?: string, category?: string, startDate?: string, endDate?: string): Promise<ApiResponse<DailyAnalytics[]>> {
+    const params = new URLSearchParams();
+    if (deviceId) params.append('deviceId', deviceId);
+    if (category) params.append('category', category);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.fetchApi<DailyAnalytics[]>(`/api/analytics/intervals/hourly${query}`);
   }
 
   async getFillLevelDistribution(): Promise<ApiResponse<FillLevelDistribution[]>> {

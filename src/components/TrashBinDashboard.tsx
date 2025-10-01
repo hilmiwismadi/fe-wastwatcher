@@ -69,7 +69,7 @@ const TrashBinDashboard = () => {
     getVolumeBarData,
     getDonutData,
     isAnyBinFull,
-  } = useApiTrashData(apiStartDate, apiEndDate);
+  } = useApiTrashData(apiStartDate, apiEndDate, timeRange);
 
   const handleTimeRangeChange = (newTimeRange: TimeRange) => {
     setTimeRange(newTimeRange);

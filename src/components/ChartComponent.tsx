@@ -42,10 +42,10 @@ export const ChartComponent: React.FC<ChartComponentProps> = ({
           type="monotone"
           dataKey="value"
           stroke="white"
-          strokeWidth={3}
-          dot={{ fill: "white", strokeWidth: 2, r: 4 }}
+          strokeWidth={2}
+          dot={{ fill: "white", strokeWidth: 1, r: 2 }}
           activeDot={{
-            r: 6,
+            r: 4,
             fill: "white",
             strokeWidth: 2,
             stroke: "rgba(255,255,255,0.8)",

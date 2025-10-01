@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { TrashData, ChartData, CurrentSpecific, ToggleType } from '../types';
 import { apiService, WasteDistribution, DailyAnalytics, TrashBinWithStatus } from '../services/api';
+import { TimeRange } from '../components/TimeRangeSelector';
 
-export const useApiTrashData = (startDate?: string, endDate?: string) => {
+export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?: TimeRange) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,16 +19,43 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
   const [wasteDistribution, setWasteDistribution] = useState<WasteDistribution[]>([]);
   const [dailyAnalytics, setDailyAnalytics] = useState<DailyAnalytics[]>([]);
   const [trashBinsStatus, setTrashBinsStatus] = useState<TrashBinWithStatus[]>([]);
+  const [currentStatusData, setCurrentStatusData] = useState<DailyAnalytics | null>(null);
 
-  // Fetch data from API
-  const fetchData = useCallback(async () => {
+  // Fetch current status data (latest data, not affected by time range)
+  const fetchCurrentStatus = useCallback(async () => {
+    try {
+      // Get the very latest data point for current status
+      const latestDataRes = await apiService.getDailyAnalytics(1); // Just get today's data
+      if (latestDataRes.success && latestDataRes.data.length > 0) {
+        setCurrentStatusData(latestDataRes.data[latestDataRes.data.length - 1]);
+      }
+    } catch (err) {
+      console.error('Error fetching current status:', err);
+    }
+  }, []);
+
+  // Fetch time-period filtered data for charts
+  const fetchTimeRangeData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
+      // Choose API endpoint based on timeRange
+      let analyticsPromise;
+      if (timeRange === 'hourly') {
+        // For hourly view, use 5-minute intervals
+        analyticsPromise = apiService.getFiveMinuteIntervalData(undefined, undefined, startDate, endDate);
+      } else if (timeRange === 'daily') {
+        // For daily view, use hourly intervals
+        analyticsPromise = apiService.getHourlyIntervalData(undefined, undefined, startDate, endDate);
+      } else {
+        // For weekly view, use daily intervals
+        analyticsPromise = apiService.getDailyAnalytics(30, undefined, startDate, endDate);
+      }
+
       const [distributionRes, analyticsRes, binsRes] = await Promise.all([
         apiService.getWasteDistribution(),
-        apiService.getDailyAnalytics(30, undefined, startDate, endDate),
+        analyticsPromise,
         apiService.getTrashBinsWithStatus()
       ]);
 
@@ -49,20 +77,22 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, timeRange]);
+
+  // Fetch both current status and time-range data
+  useEffect(() => {
+    fetchCurrentStatus(); // Fetch current status once
+  }, []); // Only run once on mount
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchTimeRangeData(); // Fetch time-range data when filters change
+  }, [fetchTimeRangeData]);
 
-  // Calculate current values from API data (using today's/latest data)
+  // Calculate current values from CURRENT STATUS data (not affected by time range filters)
   const currentWeight: TrashData = useMemo(() => {
-    // Use the latest daily analytics data as "today's" data
-    const latestData = dailyAnalytics.length > 0 ? dailyAnalytics[dailyAnalytics.length - 1] : null;
-
-    if (latestData) {
-      // For weight, use today's actual data divided by category estimates
-      const totalWeight = Number(latestData.avg_weight);
+    // Use currentStatusData which is fetched independently and always shows latest
+    if (currentStatusData) {
+      const totalWeight = Number(currentStatusData.avg_weight);
       return {
         organic: Math.round(totalWeight * 0.5 * 10) / 10, // Approximate: 50% organic
         anorganic: Math.round(totalWeight * 0.3 * 10) / 10, // Approximate: 30% inorganic
@@ -70,7 +100,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
       };
     }
 
-    // Fallback to waste distribution averages if no daily data
+    // Fallback to waste distribution averages if no current status data
     const organic = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Organic')?.avg_weight || '0')) * 10) / 10;
     const inorganic = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Inorganic')?.avg_weight || '0')) * 10) / 10;
     const b3 = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'B3')?.avg_weight || '0')) * 10) / 10;
@@ -80,15 +110,12 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
       anorganic: inorganic,
       residue: b3,
     };
-  }, [dailyAnalytics, wasteDistribution]);
+  }, [currentStatusData, wasteDistribution]);
 
   const currentVolume: TrashData = useMemo(() => {
-    // Use the latest daily analytics data as "today's" data
-    const latestData = dailyAnalytics.length > 0 ? dailyAnalytics[dailyAnalytics.length - 1] : null;
-
-    if (latestData) {
-      // For volume, use today's actual volume data divided by category estimates
-      const totalVolume = Number(latestData.avg_volume);
+    // Use currentStatusData which is fetched independently and always shows latest
+    if (currentStatusData) {
+      const totalVolume = Number(currentStatusData.avg_volume);
       return {
         organic: Math.round(totalVolume * 0.45 * 10) / 10, // Approximate: 45% organic
         anorganic: Math.round(totalVolume * 0.35 * 10) / 10, // Approximate: 35% inorganic
@@ -97,7 +124,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
       };
     }
 
-    // Fallback to waste distribution averages if no daily data
+    // Fallback to waste distribution averages if no current status data
     const organic = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Organic')?.avg_fill_percentage || '0')) * 10) / 10;
     const inorganic = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Inorganic')?.avg_fill_percentage || '0')) * 10) / 10;
     const b3 = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'B3')?.avg_fill_percentage || '0')) * 10) / 10;
@@ -108,7 +135,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
       residue: b3,
       empty: Math.round(Math.max(0, 100 - organic - inorganic - b3) * 10) / 10,
     };
-  }, [dailyAnalytics, wasteDistribution]);
+  }, [currentStatusData, wasteDistribution]);
 
   const currentTotals = useMemo(() => ({
     weight: Math.round((currentWeight.organic + currentWeight.anorganic + currentWeight.residue) * 10) / 10,
@@ -130,12 +157,31 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
     },
   }), [currentWeight, currentVolume]);
 
+  // Format timestamp based on time range
+  const formatTimestamp = (item: DailyAnalytics): string => {
+    const timestamp = item.time_interval || item.analysis_date;
+    if (!timestamp) return '';
+
+    const date = new Date(timestamp);
+
+    if (timeRange === 'hourly') {
+      // For 5-minute intervals, show time only
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    } else if (timeRange === 'daily') {
+      // For hourly intervals, show date + hour
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', hour12: false });
+    } else {
+      // For daily intervals, show date only
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+  };
+
   // Chart data functions using API data
   const getTotalChartData = (): ChartData[] => {
     if (!dailyAnalytics.length) return [];
 
     return dailyAnalytics.map((item) => ({
-      time: new Date(item.analysis_date).toLocaleDateString(),
+      time: formatTimestamp(item),
       value: totalToggle === "weight" ? item.avg_weight : item.avg_volume
     }));
   };
@@ -145,7 +191,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
 
     // Filter data for B3 category (we'd need to modify API to support category filtering)
     return dailyAnalytics.map((item) => ({
-      time: new Date(item.analysis_date).toLocaleDateString(),
+      time: formatTimestamp(item),
       value: residueToggle === "weight" ? item.avg_weight * 0.3 : item.avg_volume * 0.3 // Approximate B3 portion
     }));
   };
@@ -154,7 +200,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
     if (!dailyAnalytics.length) return [];
 
     return dailyAnalytics.map((item) => ({
-      time: new Date(item.analysis_date).toLocaleDateString(),
+      time: formatTimestamp(item),
       value: organicToggle === "weight" ? item.avg_weight * 0.5 : item.avg_volume * 0.5 // Approximate organic portion
     }));
   };
@@ -163,7 +209,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
     if (!dailyAnalytics.length) return [];
 
     return dailyAnalytics.map((item) => ({
-      time: new Date(item.analysis_date).toLocaleDateString(),
+      time: formatTimestamp(item),
       value: anorganicToggle === "weight" ? item.avg_weight * 0.2 : item.avg_volume * 0.2 // Approximate inorganic portion
     }));
   };
@@ -205,7 +251,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string) => {
     // Loading and error states
     loading,
     error,
-    refetch: fetchData,
+    refetch: fetchTimeRangeData,
 
     // State
     compositionToggle,
