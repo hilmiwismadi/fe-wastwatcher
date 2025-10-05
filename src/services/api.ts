@@ -69,6 +69,21 @@ export interface WasteDistribution {
   color_code: string;
 }
 
+export interface AggregatedComposition {
+  categories: {
+    category: 'Organic' | 'Inorganic' | 'B3';
+    bin_count: string;
+    total_weight: string;
+    avg_weight_per_bin: string;
+    avg_volume_percentage: string;
+  }[];
+  summary: {
+    total_weight: number;
+    avg_volume_percentage: number;
+    total_bins: number;
+  };
+}
+
 export interface DailyAnalytics {
   analysis_date?: string;
   time_interval?: string;
@@ -251,6 +266,10 @@ class ApiService {
 
   async getWasteDistribution(): Promise<ApiResponse<WasteDistribution[]>> {
     return this.fetchApi<WasteDistribution[]>('/api/analytics/waste-distribution');
+  }
+
+  async getAggregatedComposition(): Promise<ApiResponse<AggregatedComposition>> {
+    return this.fetchApi<AggregatedComposition>('/api/analytics/composition/aggregated');
   }
 
   async getDailyAnalytics(days?: number, category?: string, startDate?: string, endDate?: string): Promise<ApiResponse<DailyAnalytics[]>> {
