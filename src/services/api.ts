@@ -38,7 +38,7 @@ export interface TrashBinWithStatus extends TrashBin {
 export interface Device {
   deviceid: string;
   trashbinid: string;
-  category: 'Organic' | 'Inorganic' | 'B3';
+  category: 'Organic' | 'Inorganic' | 'Anorganic' | 'B3' | 'Residue';
   status: 'active' | 'maintenance' | 'faulty' | 'offline';
   bin_name: string;
   location: string;
@@ -156,7 +156,14 @@ class ApiService {
       } else if (endpoint.includes('/intervals/hourly')) {
         return mockHourlyIntervalData as ApiResponse<T>;
       } else if (endpoint.includes('/daily')) {
-        return mockDailyAnalytics as ApiResponse<T>;
+        // Handle days parameter for daily analytics
+        const daysMatch = endpoint.match(/days=(\d+)/);
+        const requestedDays = daysMatch ? parseInt(daysMatch[1]) : 30;
+        const filteredData = mockDailyAnalytics.data.slice(-requestedDays);
+        return {
+          ...mockDailyAnalytics,
+          data: filteredData
+        } as ApiResponse<T>;
       } else if (endpoint.includes('/trash-bins/status')) {
         return mockTrashBinsWithStatus as ApiResponse<T>;
       }
@@ -252,11 +259,15 @@ class ApiService {
   }
 
   async getDevicesWithHealth(): Promise<ApiResponse<Device[]>> {
-    return this.fetchApi<Device[]>('/api/devices/health');
+    return this.fetchApi<Device[]>('/api/devices');
   }
 
   async getDeviceStatistics(): Promise<ApiResponse<DeviceStatistics>> {
     return this.fetchApi<DeviceStatistics>('/api/devices/statistics');
+  }
+
+  async getDevicesByTrashBinId(trashbinid: string): Promise<ApiResponse<Device[]>> {
+    return this.fetchApi<Device[]>(`/api/devices?trashbinid=${trashbinid}`);
   }
 
   // Analytics

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   PieChart,
   Pie,
@@ -16,10 +17,23 @@ import { ChartComponent } from './ChartComponent';
 import { BarChart } from './BarChart';
 import { TouchCarousel } from './TouchCarousel';
 import { useApiTrashData } from '../hooks/useApiTrashData';
-import { trashBinName, batteryPercentage, condition } from '../data/mockData';
+import { getBinData, binSlugToIdMapping } from '../data/mockData';
 import { getDefaultDateRange, combineDateAndTime, getTimeRangeDate } from '../utils/dateUtils';
 
-const TrashBinDashboard = () => {
+interface TrashBinDashboardProps {
+  binSlug?: string; // URL slug for the bin (e.g., "kantinlt1")
+}
+
+const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantinlt1' }) => {
+  const router = useRouter();
+
+  // Get bin data from slug
+  const binData = getBinData(binSlug);
+  const { name: trashBinName, battery: batteryPercentage, condition } = binData;
+
+  // Get trashbinid from slug for API calls
+  const trashbinid = binSlugToIdMapping[binSlug.toLowerCase()];
+
   // Initialize with default date range
   const defaultRange = getDefaultDateRange();
 
@@ -68,7 +82,7 @@ const TrashBinDashboard = () => {
     getVolumeBarData,
     getDonutData,
     isAnyBinFull,
-  } = useApiTrashData(apiStartDate, apiEndDate, timeRange);
+  } = useApiTrashData(apiStartDate, apiEndDate, timeRange, trashbinid);
 
   const handleTimeRangeChange = (newTimeRange: TimeRange) => {
     setTimeRange(newTimeRange);
@@ -123,6 +137,7 @@ const TrashBinDashboard = () => {
       cardBg: 'bg-red-50',
       borderColor: 'border-red-200',
       valueColor: 'text-red-600',
+      isAlert: currentSpecific.residue.volume > 80,
     },
     {
       id: 'organic',
@@ -152,6 +167,7 @@ const TrashBinDashboard = () => {
       cardBg: 'bg-yellow-50',
       borderColor: 'border-yellow-200',
       valueColor: 'text-yellow-600',
+      isAlert: currentSpecific.anorganic.volume > 80,
     },
   ];
 
@@ -187,14 +203,12 @@ const TrashBinDashboard = () => {
         <div className="grid grid-cols-2 gap-1">
           <div className={`text-center ${binData.cardBg} p-2 rounded border ${binData.borderColor}`}>
             <p className="text-xs font-medium text-gray-800 mb-1">Weight</p>
-            <p className={`text-sm font-bold ${binData.valueColor}`}>{binData.currentData.weight}</p>
+            <p className={`text-sm font-bold ${binData.isAlert ? "text-red-600" : "text-black"}`}>{binData.currentData.weight}</p>
             <p className="text-xs text-gray-600">grams</p>
           </div>
           <div className={`text-center ${binData.cardBg} p-2 rounded border ${binData.borderColor}`}>
             <p className="text-xs font-medium text-gray-800 mb-1">Volume</p>
-            <p className={`text-sm font-bold ${
-              binData.isAlert ? "text-red-600" : binData.valueColor
-            }`}>
+            <p className={`text-sm font-bold ${binData.isAlert ? "text-red-600" : "text-black"}`}>
               {binData.currentData.volume}%
             </p>
             <p className="text-xs text-gray-600">capacity</p>
@@ -241,8 +255,16 @@ const TrashBinDashboard = () => {
         {/* Clean Header */}
         <div className="bg-white p-2 sm:p-3 rounded-lg shadow-sm border">
           <div className="flex items-center justify-between">
-            {/* Left: Title + Battery */}
+            {/* Left: Back Button + Title + Battery */}
             <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={() => router.push('/monitoring')}
+                className="flex items-center gap-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                aria-label="Back to monitoring"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-xs sm:text-sm font-medium">Back</span>
+              </button>
               <div className="group relative">
                 <h1 className="text-lg sm:text-xl font-bold text-gray-800 cursor-pointer">
                   {trashBinName}
@@ -461,8 +483,10 @@ const TrashBinDashboard = () => {
           </div>
         </div>
 
-        {/* Alert Notification */}
-        {isAnyBinFull() && (
+        {/* Alert Notification - Only show if any category in THIS bin is > 80% */}
+        {(currentSpecific.residue.volume > 80 ||
+          currentSpecific.organic.volume > 80 ||
+          currentSpecific.anorganic.volume > 80) && (
           <div className="fixed bottom-3 right-3 bg-gradient-to-r from-red-500 to-red-600 text-white p-2 sm:p-3 rounded-lg shadow-xl flex items-center gap-2 animate-pulse border border-red-400 z-10">
             <AlertCircle className="w-4 h-4" />
             <span className="font-bold text-xs sm:text-sm">Alert: Bin is full!</span>

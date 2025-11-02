@@ -61,12 +61,12 @@ export const mockFiveMinuteIntervalData: ApiResponse<DailyAnalytics[]> = {
   })
 };
 
-// Mock hourly interval data (for daily view - 24 data points)
+// Mock hourly interval data (for "Day" view - 24 hourly data points from 00:00-23:00)
 export const mockHourlyIntervalData: ApiResponse<DailyAnalytics[]> = {
   success: true,
   data: Array.from({ length: 24 }, (_, i) => {
     const date = new Date();
-    date.setHours(date.getHours() - (23 - i));
+    date.setHours(i, 0, 0, 0); // Set to hour i, with 0 minutes/seconds
     return {
       time_interval: date.toISOString(),
       data_points: Math.floor(Math.random() * 50) + 20,

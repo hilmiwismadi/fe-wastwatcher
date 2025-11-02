@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Search, ChevronDown, AlertCircle } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { ToggleButton } from "./ToggleButton";
 import { BarChart } from "./BarChart";
 import { apiService, Device } from "@/services/api";
-import { useMonitoringComposition } from "@/hooks/useMonitoringComposition";
 
 // Status categories based on fill percentage
 const getStatusCategory = (percentage: number): 'Penuh' | 'Hampir Penuh' | 'Menengah' | 'Kosong' => {
@@ -54,7 +54,23 @@ interface BinData {
   max_percentage: number;
 }
 
+// Map old bin names to new names
+const binNameMapping: Record<string, string> = {
+  'B3 Hazardous Bin': 'Timur Selasar',
+  'Inorganic Waste Bin': 'Barat Selasar',
+  'Main Cafeteria Bin': 'Selatan Selasar'
+};
+
+// Function to generate slug from bin name
+const generateSlug = (name: string): string => {
+  return name
+    .toLowerCase()
+    .replace(/\s+/g, '') // Remove all spaces
+    .replace(/[^a-z0-9]/g, ''); // Remove special characters
+};
+
 const MonitoringPage = () => {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFloor, setSelectedFloor] = useState("Semua Lantai");
   const [selectedStatus, setSelectedStatus] = useState("Semua Status");
@@ -70,12 +86,7 @@ const MonitoringPage = () => {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Fetch aggregated composition data for donut charts
-  const {
-    weightData: aggregatedWeightData,
-    volumeData: aggregatedVolumeData,
-    loading: compositionLoading
-  } = useMonitoringComposition();
+  // Note: Not using aggregated composition - using Kantin LT 1 specific data instead
 
   React.useEffect(() => {
     const fetchData = async () => {
@@ -95,7 +106,7 @@ const MonitoringPage = () => {
           binsResponse.data.forEach(bin => {
             binMap.set(bin.trashbinid, {
               trashbinid: bin.trashbinid,
-              name: bin.name,
+              name: binNameMapping[bin.name] || bin.name, // Apply name mapping
               location: bin.location,
               floor: bin.floor,
               organic_percentage: 0,
@@ -118,10 +129,10 @@ const MonitoringPage = () => {
               if (device.category === 'Organic') {
                 binData.organic_percentage = percentage;
                 binData.organic_weight = weight;
-              } else if (device.category === 'Inorganic') {
+              } else if (device.category === 'Anorganic' || device.category === 'Inorganic') {
                 binData.anorganic_percentage = percentage;
                 binData.anorganic_weight = weight;
-              } else if (device.category === 'B3') {
+              } else if (device.category === 'Residue' || device.category === 'B3') {
                 binData.residue_percentage = percentage;
                 binData.residue_weight = weight;
               }
@@ -134,6 +145,7 @@ const MonitoringPage = () => {
             }
           });
 
+          // Convert binMap to array
           setBins(Array.from(binMap.values()));
         } else {
           setError('Failed to fetch monitoring data');
@@ -184,9 +196,37 @@ const MonitoringPage = () => {
     return counts;
   }, [bins]);
 
-  // Use aggregated data from backend API (same as TrashBinDashboard)
-  const volumeData = aggregatedVolumeData;
-  const weightData = aggregatedWeightData;
+  // Use Kantin LT 1 specific data for Weight and Volume charts
+  const kantinLt1 = useMemo(() => bins.find(bin => bin.name === 'Kantin LT 1'), [bins]);
+
+  const volumeData = useMemo(() => {
+    if (!kantinLt1) return [
+      { name: "Organic", value: 81.5, color: "#22c55e" },
+      { name: "Anorganic", value: 39.4, color: "#eab308" },
+      { name: "Residue", value: 19.4, color: "#ef4444" }
+    ];
+
+    return [
+      { name: "Organic", value: kantinLt1.organic_percentage, color: "#22c55e" },
+      { name: "Anorganic", value: kantinLt1.anorganic_percentage, color: "#eab308" },
+      { name: "Residue", value: kantinLt1.residue_percentage, color: "#ef4444" }
+    ];
+  }, [kantinLt1]);
+
+  const weightData = useMemo(() => {
+    if (!kantinLt1) return [
+      { name: "Organic", value: 1222.5, color: "#22c55e" },
+      { name: "Anorganic", value: 472.8, color: "#eab308" },
+      { name: "Residue", value: 155.2, color: "#ef4444" }
+    ];
+
+    // Return actual weight values in grams (not percentages)
+    return [
+      { name: "Organic", value: Math.round(kantinLt1.organic_weight * 10) / 10, color: "#22c55e" },
+      { name: "Anorganic", value: Math.round(kantinLt1.anorganic_weight * 10) / 10, color: "#eab308" },
+      { name: "Residue", value: Math.round(kantinLt1.residue_weight * 10) / 10, color: "#ef4444" }
+    ];
+  }, [kantinLt1]);
 
   if (loading) {
     return (
@@ -439,6 +479,7 @@ const MonitoringPage = () => {
                       data={weightData}
                       selectedIndex={selectedWeightSlice}
                       onBarHover={setSelectedWeightSlice}
+                      unit="g"
                     />
                   </div>
                 )}
@@ -455,11 +496,13 @@ const MonitoringPage = () => {
             {filteredBins.map((bin) => {
               const borderColor = getBorderColor(bin.max_percentage);
               const bgColor = getBackgroundColor(bin.max_percentage);
+              const slug = generateSlug(bin.name);
 
               return (
                 <div
                   key={bin.trashbinid}
-                  className={`bg-gradient-to-br ${bgColor} rounded-lg sm:rounded-xl p-2 sm:p-3 border-4 ${borderColor} hover:shadow-lg transition-all`}
+                  onClick={() => router.push(`/${slug}`)}
+                  className={`bg-gradient-to-br ${bgColor} rounded-lg sm:rounded-xl p-2 sm:p-3 border-4 ${borderColor} hover:shadow-lg transition-all cursor-pointer hover:scale-105`}
                 >
                   <h3 className="font-bold text-center mb-1.5 sm:mb-2 text-xs sm:text-sm truncate text-gray-800" title={bin.name}>
                     {bin.name}

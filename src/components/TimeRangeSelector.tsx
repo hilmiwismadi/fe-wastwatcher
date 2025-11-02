@@ -16,9 +16,9 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
   className = ""
 }) => {
   const timeRanges: { value: TimeRange; label: string; description: string }[] = [
-    { value: 'hourly', label: 'Hourly', description: 'Last 24 hours' },
-    { value: 'daily', label: 'Daily', description: 'Last 7 days' },
-    { value: 'weekly', label: 'Weekly', description: 'Last 4 weeks' }
+    { value: 'hourly', label: 'Day', description: 'Hourly data (00:00-23:00)' },
+    { value: 'daily', label: 'Week', description: '7 days of data' },
+    { value: 'weekly', label: 'Month', description: '30 days of data' }
   ];
 
   return (

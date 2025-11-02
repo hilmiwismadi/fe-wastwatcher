@@ -1,8 +1,70 @@
 import { ChartData } from '../types';
 
-export const trashBinName = "Trash Bin Kantin It 1";
+// Slug to TrashBin ID mapping
+export const binSlugToIdMapping: Record<string, string> = {
+  'baratlt1': 'TB-BARAT-LT1',
+  'baratlt2': 'TB-BARAT-LT2',
+  'baratlt3': 'TB-BARAT-LT3',
+  'baratlt4': 'TB-BARAT-LT4',
+  'baratlt5': 'TB-BARAT-LT5',
+  'baratlt6': 'TB-BARAT-LT6',
+  'kantinlt1': 'TB_KANTIN_LT1',
+  'selatanlt1': 'TB-SELATAN-LT1',
+  'selatanlt2': 'TB-SELATAN-LT2',
+  'selatanlt3': 'TB-SELATAN-LT3',
+  'selatanlt4': 'TB-SELATAN-LT4',
+  'selatanlt5': 'TB-SELATAN-LT5',
+  'timurlt1': 'TB-TIMUR-LT1',
+  'timurlt2': 'TB-TIMUR-LT2',
+  'timurlt3': 'TB-TIMUR-LT3',
+  'timurlt4': 'TB-TIMUR-LT4',
+  'timurlt5': 'TB-TIMUR-LT5',
+  'timurlt6': 'TB-TIMUR-LT6',
+  'utaralt1': 'TB-UTARA-LT1',
+  'utaralt2': 'TB-UTARA-LT2',
+  'utaralt3': 'TB-UTARA-LT3',
+  'utaralt4': 'TB-UTARA-LT4',
+  'utaralt5': 'TB-UTARA-LT5',
+  'utaralt6': 'TB-UTARA-LT6',
+};
+
+// Bin data mapping from slug to display name
+export const binSlugMapping: Record<string, { name: string; battery: number; condition: string }> = {
+  'kantinlt1': {
+    name: 'Trash Bin Kantin LT 1',
+    battery: 80,
+    condition: 'Menumpuk di satu sisi'
+  },
+  'timurselasar': {
+    name: 'Timur Selasar',
+    battery: 75,
+    condition: 'Normal'
+  },
+  'baratselasar': {
+    name: 'Barat Selasar',
+    battery: 85,
+    condition: 'Normal'
+  },
+  'selatanselasar': {
+    name: 'Selatan Selasar',
+    battery: 70,
+    condition: 'Terisi penuh'
+  }
+};
+
+// Default fallback values
+export const trashBinName = "Trash Bin Kantin LT 1";
 export const batteryPercentage = 80;
 export const condition = "Menumpuk di satu sisi";
+
+// Get bin data by slug
+export const getBinData = (slug: string) => {
+  return binSlugMapping[slug.toLowerCase()] || {
+    name: trashBinName,
+    battery: batteryPercentage,
+    condition: condition
+  };
+};
 
 // Realistic hourly data with variable waste removal patterns
 // Weight data in grams (1-5000g) with variative inputs

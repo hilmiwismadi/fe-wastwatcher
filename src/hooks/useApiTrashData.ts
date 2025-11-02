@@ -3,7 +3,7 @@ import { TrashData, ChartData, CurrentSpecific, ToggleType } from '../types';
 import { apiService, WasteDistribution, DailyAnalytics, TrashBinWithStatus } from '../services/api';
 import { TimeRange } from '../components/TimeRangeSelector';
 
-export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?: TimeRange) => {
+export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?: TimeRange, binId?: string) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,8 +18,12 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
   // API Data states
   const [wasteDistribution, setWasteDistribution] = useState<WasteDistribution[]>([]);
   const [dailyAnalytics, setDailyAnalytics] = useState<DailyAnalytics[]>([]);
+  const [organicAnalytics, setOrganicAnalytics] = useState<DailyAnalytics[]>([]);
+  const [anorganicAnalytics, setAnorganicAnalytics] = useState<DailyAnalytics[]>([]);
+  const [residueAnalytics, setResidueAnalytics] = useState<DailyAnalytics[]>([]);
   const [trashBinsStatus, setTrashBinsStatus] = useState<TrashBinWithStatus[]>([]);
   const [currentStatusData, setCurrentStatusData] = useState<DailyAnalytics | null>(null);
+  const [binSpecificDevices, setBinSpecificDevices] = useState<any[]>([]);
 
   // Fetch current status data (latest data, not affected by time range)
   const fetchCurrentStatus = useCallback(async () => {
@@ -29,10 +33,18 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
       if (latestDataRes.success && latestDataRes.data.length > 0) {
         setCurrentStatusData(latestDataRes.data[latestDataRes.data.length - 1]);
       }
+
+      // If binId is provided, fetch bin-specific devices
+      if (binId) {
+        const devicesRes = await apiService.getDevicesByTrashBinId(binId);
+        if (devicesRes.success) {
+          setBinSpecificDevices(devicesRes.data);
+        }
+      }
     } catch (err) {
       console.error('Error fetching current status:', err);
     }
-  }, []);
+  }, [binId]);
 
   // Fetch time-period filtered data for charts
   const fetchTimeRangeData = useCallback(async () => {
@@ -41,21 +53,33 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
       setError(null);
 
       // Choose API endpoint based on timeRange
-      let analyticsPromise;
+      let analyticsPromise, organicPromise, anorganicPromise, residuePromise;
       if (timeRange === 'hourly') {
-        // For hourly view, use 5-minute intervals
-        analyticsPromise = apiService.getFiveMinuteIntervalData(undefined, undefined, startDate, endDate);
-      } else if (timeRange === 'daily') {
-        // For daily view, use hourly intervals
+        // For "Day" view, show hourly data (24 hours: 00:00-23:00)
         analyticsPromise = apiService.getHourlyIntervalData(undefined, undefined, startDate, endDate);
+        organicPromise = apiService.getHourlyIntervalData(undefined, 'Organic', startDate, endDate);
+        anorganicPromise = apiService.getHourlyIntervalData(undefined, 'Anorganic', startDate, endDate);
+        residuePromise = apiService.getHourlyIntervalData(undefined, 'Residue', startDate, endDate);
+      } else if (timeRange === 'daily') {
+        // For "Week" view, show daily data (7 days)
+        analyticsPromise = apiService.getDailyAnalytics(7, undefined, startDate, endDate);
+        organicPromise = apiService.getDailyAnalytics(7, 'Organic', startDate, endDate);
+        anorganicPromise = apiService.getDailyAnalytics(7, 'Anorganic', startDate, endDate);
+        residuePromise = apiService.getDailyAnalytics(7, 'Residue', startDate, endDate);
       } else {
-        // For weekly view, use daily intervals
+        // For "Month" view, show daily data (30 days)
         analyticsPromise = apiService.getDailyAnalytics(30, undefined, startDate, endDate);
+        organicPromise = apiService.getDailyAnalytics(30, 'Organic', startDate, endDate);
+        anorganicPromise = apiService.getDailyAnalytics(30, 'Anorganic', startDate, endDate);
+        residuePromise = apiService.getDailyAnalytics(30, 'Residue', startDate, endDate);
       }
 
-      const [distributionRes, analyticsRes, binsRes] = await Promise.all([
+      const [distributionRes, analyticsRes, organicRes, anorganicRes, residueRes, binsRes] = await Promise.all([
         apiService.getWasteDistribution(),
         analyticsPromise,
+        organicPromise,
+        anorganicPromise,
+        residuePromise,
         apiService.getTrashBinsWithStatus()
       ]);
 
@@ -65,6 +89,18 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
 
       if (analyticsRes.success) {
         setDailyAnalytics(analyticsRes.data);
+      }
+
+      if (organicRes.success) {
+        setOrganicAnalytics(organicRes.data);
+      }
+
+      if (anorganicRes.success) {
+        setAnorganicAnalytics(anorganicRes.data);
+      }
+
+      if (residueRes.success) {
+        setResidueAnalytics(residueRes.data);
       }
 
       if (binsRes.success) {
@@ -91,52 +127,60 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
 
   // Calculate current values from CURRENT STATUS data (not affected by time range filters)
   const currentWeight: TrashData = useMemo(() => {
-    // Use currentStatusData which is fetched independently and always shows latest
-    if (currentStatusData) {
-      const totalWeight = Number(currentStatusData.avg_weight);
+    // If bin-specific devices are available, use those instead of system-wide averages
+    if (binId && binSpecificDevices.length > 0) {
+      const organic = Math.round(parseFloat(String(binSpecificDevices.find(d => d.category === 'Organic')?.total_weight_kg || '0')) * 10) / 10;
+      const anorganic = Math.round(parseFloat(String(binSpecificDevices.find(d => d.category === 'Anorganic' || d.category === 'Inorganic')?.total_weight_kg || '0')) * 10) / 10;
+      const residue = Math.round(parseFloat(String(binSpecificDevices.find(d => d.category === 'Residue' || d.category === 'B3')?.total_weight_kg || '0')) * 10) / 10;
+
       return {
-        organic: Math.round(totalWeight * 0.5 * 10) / 10, // Approximate: 50% organic
-        anorganic: Math.round(totalWeight * 0.3 * 10) / 10, // Approximate: 30% inorganic
-        residue: Math.round(totalWeight * 0.2 * 10) / 10, // Approximate: 20% B3
+        organic,
+        anorganic,
+        residue,
       };
     }
 
-    // Fallback to waste distribution averages if no current status data
+    // Use waste distribution data which has real per-device weights
     const organic = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Organic')?.avg_weight || '0')) * 10) / 10;
-    const inorganic = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Inorganic')?.avg_weight || '0')) * 10) / 10;
-    const b3 = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'B3')?.avg_weight || '0')) * 10) / 10;
+    const anorganic = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Anorganic' || w.category === 'Inorganic')?.avg_weight || '0')) * 10) / 10;
+    const residue = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Residue' || w.category === 'B3')?.avg_weight || '0')) * 10) / 10;
 
     return {
       organic,
-      anorganic: inorganic,
-      residue: b3,
+      anorganic,
+      residue,
     };
-  }, [currentStatusData, wasteDistribution]);
+  }, [wasteDistribution, binId, binSpecificDevices]);
 
   const currentVolume: TrashData = useMemo(() => {
-    // Use currentStatusData which is fetched independently and always shows latest
-    if (currentStatusData) {
-      const totalVolume = Number(currentStatusData.avg_volume);
+    // If bin-specific devices are available, use those instead of system-wide averages
+    if (binId && binSpecificDevices.length > 0) {
+      const organic = Math.round(parseFloat(String(binSpecificDevices.find(d => d.category === 'Organic')?.average_volume_percentage || '0')) * 10) / 10;
+      const anorganic = Math.round(parseFloat(String(binSpecificDevices.find(d => d.category === 'Anorganic' || d.category === 'Inorganic')?.average_volume_percentage || '0')) * 10) / 10;
+      const residue = Math.round(parseFloat(String(binSpecificDevices.find(d => d.category === 'Residue' || d.category === 'B3')?.average_volume_percentage || '0')) * 10) / 10;
+
       return {
-        organic: Math.round(totalVolume * 0.45 * 10) / 10, // Approximate: 45% organic
-        anorganic: Math.round(totalVolume * 0.35 * 10) / 10, // Approximate: 35% inorganic
-        residue: Math.round(totalVolume * 0.20 * 10) / 10, // Approximate: 20% B3
-        empty: Math.round(Math.max(0, 100 - totalVolume) * 10) / 10,
+        organic,
+        anorganic,
+        residue,
+        empty: 0, // Not applicable for individual device percentages
       };
     }
 
-    // Fallback to waste distribution averages if no current status data
+    // Use waste distribution data which has real per-device percentages
+    // These represent individual device fill percentages
     const organic = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Organic')?.avg_fill_percentage || '0')) * 10) / 10;
-    const inorganic = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Inorganic')?.avg_fill_percentage || '0')) * 10) / 10;
-    const b3 = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'B3')?.avg_fill_percentage || '0')) * 10) / 10;
+    const anorganic = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Anorganic' || w.category === 'Inorganic')?.avg_fill_percentage || '0')) * 10) / 10;
+    const residue = Math.round(parseFloat(String(wasteDistribution.find(w => w.category === 'Residue' || w.category === 'B3')?.avg_fill_percentage || '0')) * 10) / 10;
 
+    // These are individual percentages, not totals (each device can be 0-100%)
     return {
       organic,
-      anorganic: inorganic,
-      residue: b3,
-      empty: Math.round(Math.max(0, 100 - organic - inorganic - b3) * 10) / 10,
+      anorganic,
+      residue,
+      empty: 0, // Not applicable for individual device percentages
     };
-  }, [currentStatusData, wasteDistribution]);
+  }, [wasteDistribution, binId, binSpecificDevices]);
 
   const currentTotals = useMemo(() => ({
     weight: Math.round((currentWeight.organic + currentWeight.anorganic + currentWeight.residue) * 10) / 10,
@@ -166,13 +210,13 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
     const date = new Date(timestamp);
 
     if (timeRange === 'hourly') {
-      // For 5-minute intervals, show time only
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+      // For "Day" view: show hourly timestamps (00:00-23:00)
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', hour12: false }) + ':00';
     } else if (timeRange === 'daily') {
-      // For hourly intervals, show date + hour
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', hour12: false });
+      // For "Week" view: show 7 daily date points
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     } else {
-      // For daily intervals, show date only
+      // For "Month" view: show 30 daily date points
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
   };
@@ -188,30 +232,29 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
   };
 
   const getResidueChartData = (): ChartData[] => {
-    if (!dailyAnalytics.length) return [];
+    if (!residueAnalytics.length) return [];
 
-    // Filter data for B3 category (we'd need to modify API to support category filtering)
-    return dailyAnalytics.map((item) => ({
+    return residueAnalytics.map((item) => ({
       time: formatTimestamp(item),
-      value: residueToggle === "weight" ? item.avg_weight * 0.3 : item.avg_volume * 0.3 // Approximate B3 portion
+      value: residueToggle === "weight" ? item.avg_weight : item.avg_volume
     }));
   };
 
   const getOrganicChartData = (): ChartData[] => {
-    if (!dailyAnalytics.length) return [];
+    if (!organicAnalytics.length) return [];
 
-    return dailyAnalytics.map((item) => ({
+    return organicAnalytics.map((item) => ({
       time: formatTimestamp(item),
-      value: organicToggle === "weight" ? item.avg_weight * 0.5 : item.avg_volume * 0.5 // Approximate organic portion
+      value: organicToggle === "weight" ? item.avg_weight : item.avg_volume
     }));
   };
 
   const getAnorganicChartData = (): ChartData[] => {
-    if (!dailyAnalytics.length) return [];
+    if (!anorganicAnalytics.length) return [];
 
-    return dailyAnalytics.map((item) => ({
+    return anorganicAnalytics.map((item) => ({
       time: formatTimestamp(item),
-      value: anorganicToggle === "weight" ? item.avg_weight * 0.2 : item.avg_volume * 0.2 // Approximate inorganic portion
+      value: anorganicToggle === "weight" ? item.avg_weight : item.avg_volume
     }));
   };
 

@@ -1,0 +1,502 @@
+'use client'
+
+import { useEffect, useRef } from 'react'
+
+// =====================================================
+// INTERFACE UNTUK DATA SENSOR
+// =====================================================
+interface SensorData {
+  topLeft: number      // Sensor di (12.5, 12.5)
+  topRight: number     // Sensor di (37.5, 12.5)
+  bottomLeft: number   // Sensor di (12.5, 37.5)
+  bottomRight: number  // Sensor di (37.5, 37.5)
+}
+
+interface Bin3DVisualizationProps {
+  binType: 'organic' | 'anorganic' | 'residue'
+  sensorData: SensorData | null
+}
+
+// =====================================================
+// KONSTANTA - DIMENSI BIN (dalam cm)
+// =====================================================
+const BIN_WIDTH = 50    // Panjang bin (cm)
+const BIN_DEPTH = 50    // Lebar bin (cm)
+const BIN_HEIGHT = 80   // Tinggi bin (cm)
+
+// Posisi sensor dalam koordinat bin (cm dari sudut kiri bawah)
+const SENSOR_POSITIONS = {
+  topLeft: { x: 12.5, y: 12.5 },
+  topRight: { x: 37.5, y: 12.5 },
+  bottomLeft: { x: 12.5, y: 37.5 },
+  bottomRight: { x: 37.5, y: 37.5 }
+}
+
+export default function Bin3DVisualization({
+  binType,
+  sensorData
+}: Bin3DVisualizationProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // =====================================================
+  // KONFIGURASI WARNA UNTUK SETIAP BIN
+  // =====================================================
+  const getColor = () => {
+    switch (binType) {
+      case 'organic':
+        return { primary: '#22C55E', secondary: '#16A34A', light: '#86EFAC', dark: '#15803D' }
+      case 'anorganic':
+        return { primary: '#3B82F6', secondary: '#2563EB', light: '#93C5FD', dark: '#1E40AF' }
+      case 'residue':
+        return { primary: '#F97316', secondary: '#EA580C', light: '#FDBA74', dark: '#C2410C' }
+    }
+  }
+
+  const colors = getColor()
+
+  // =====================================================
+  // KONVERSI DISTANCE KE TINGGI SAMPAH
+  // =====================================================
+  // Distance = jarak dari sensor (atas bin) ke permukaan sampah
+  // Tinggi sampah = 80cm - distance
+  const distanceToWasteHeight = (distance: number): number => {
+    return Math.max(0, Math.min(BIN_HEIGHT, BIN_HEIGHT - distance))
+  }
+
+  // Konversi tinggi sampah ke persentase
+  const wasteHeightToPercent = (wasteHeight: number): number => {
+    return (wasteHeight / BIN_HEIGHT) * 100
+  }
+
+  // =====================================================
+  // RENDER 3D VISUALIZATION
+  // =====================================================
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Set canvas size
+    canvas.width = 500
+    canvas.height = 500
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    // Default values jika tidak ada data
+    const sensors = sensorData || { topLeft: 80, topRight: 80, bottomLeft: 80, bottomRight: 80 }
+
+    // Konversi distance ke tinggi sampah (dalam cm)
+    const wasteHeights = {
+      topLeft: distanceToWasteHeight(sensors.topLeft),
+      topRight: distanceToWasteHeight(sensors.topRight),
+      bottomLeft: distanceToWasteHeight(sensors.bottomLeft),
+      bottomRight: distanceToWasteHeight(sensors.bottomRight)
+    }
+
+    // =====================================================
+    // SETUP PERSPEKTIF & SKALA - ISOMETRIC VIEW
+    // =====================================================
+
+    const centerX = canvas.width / 2
+    // Kamera adjustment: -35 + 20 = -15 pixels (dari baseline +50)
+    const centerY = canvas.height / 2 + 50 - 15  // Adjustment total: +35
+
+    // Scale factor untuk fit ke canvas
+    const scale = 3.5
+
+    // Perspective offset untuk 3D effect
+    const perspectiveX = 60
+    const perspectiveY = 80  // Diperbesar dari 40 ke 80 untuk sudut pandang lebih ke bawah
+
+    // =====================================================
+    // HELPER: Konversi koordinat bin ke canvas (Isometric)
+    // =====================================================
+    const binToCanvas = (x: number, y: number, z: number) => {
+      return {
+        x: centerX + (x - BIN_WIDTH / 2) * scale + (y / BIN_DEPTH) * perspectiveX,
+        y: centerY - z * scale + (y / BIN_DEPTH) * perspectiveY
+      }
+    }
+
+    // =====================================================
+    // 1. GAMBAR CONTAINER BIN (WIREFRAME)
+    // =====================================================
+
+    // Bottom corners (z=0)
+    const c1 = binToCanvas(0, 0, 0)      // Front-left-bottom
+    const c2 = binToCanvas(BIN_WIDTH, 0, 0)   // Front-right-bottom
+    const c3 = binToCanvas(BIN_WIDTH, BIN_DEPTH, 0) // Back-right-bottom
+    const c4 = binToCanvas(0, BIN_DEPTH, 0)   // Back-left-bottom
+
+    // Top corners (z=80)
+    const c5 = binToCanvas(0, 0, BIN_HEIGHT)      // Front-left-top
+    const c6 = binToCanvas(BIN_WIDTH, 0, BIN_HEIGHT)   // Front-right-top
+    const c7 = binToCanvas(BIN_WIDTH, BIN_DEPTH, BIN_HEIGHT) // Back-right-top
+    const c8 = binToCanvas(0, BIN_DEPTH, BIN_HEIGHT)   // Back-left-top
+
+    // Draw bottom face
+    ctx.fillStyle = '#F3F4F6'
+    ctx.beginPath()
+    ctx.moveTo(c1.x, c1.y)
+    ctx.lineTo(c2.x, c2.y)
+    ctx.lineTo(c3.x, c3.y)
+    ctx.lineTo(c4.x, c4.y)
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = '#9CA3AF'
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    // Dinding sisi dihapus untuk tampilan lebih bersih
+
+    // Draw bin wireframe edges only
+    ctx.strokeStyle = '#9CA3AF'
+    ctx.lineWidth = 2
+
+    // Bottom edges
+    ctx.beginPath()
+    ctx.moveTo(c1.x, c1.y); ctx.lineTo(c2.x, c2.y)
+    ctx.moveTo(c2.x, c2.y); ctx.lineTo(c3.x, c3.y)
+    ctx.moveTo(c3.x, c3.y); ctx.lineTo(c4.x, c4.y)
+    ctx.moveTo(c4.x, c4.y); ctx.lineTo(c1.x, c1.y)
+    ctx.stroke()
+
+    // Vertical edges
+    ctx.strokeStyle = '#6B7280'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(c1.x, c1.y); ctx.lineTo(c5.x, c5.y)
+    ctx.moveTo(c2.x, c2.y); ctx.lineTo(c6.x, c6.y)
+    ctx.moveTo(c3.x, c3.y); ctx.lineTo(c7.x, c7.y)
+    ctx.moveTo(c4.x, c4.y); ctx.lineTo(c8.x, c8.y)
+    ctx.stroke()
+
+    // Top edges
+    ctx.strokeStyle = '#9CA3AF'
+    ctx.beginPath()
+    ctx.moveTo(c5.x, c5.y); ctx.lineTo(c6.x, c6.y)
+    ctx.moveTo(c6.x, c6.y); ctx.lineTo(c7.x, c7.y)
+    ctx.moveTo(c7.x, c7.y); ctx.lineTo(c8.x, c8.y)
+    ctx.moveTo(c8.x, c8.y); ctx.lineTo(c5.x, c5.y)
+    ctx.stroke()
+
+    // =====================================================
+    // 2. GAMBAR 4 KUBUS SAMPAH DI POSISI SENSOR
+    // =====================================================
+
+    const drawWasteCube = (
+      posX: number,
+      posY: number,
+      height: number,
+      label: string,
+      distance: number
+    ) => {
+      const cubeWidth = 25  // Lebar kubus dalam cm (mengisi 1/2 bin = 50/2 = 25cm)
+      const cubeDepth = 25  // Kedalaman kubus dalam cm (mengisi 1/2 bin = 50/2 = 25cm)
+
+      // 8 corners of the cube
+      const cb1 = binToCanvas(posX - cubeWidth / 2, posY - cubeDepth / 2, 0)
+      const cb2 = binToCanvas(posX + cubeWidth / 2, posY - cubeDepth / 2, 0)
+      const cb3 = binToCanvas(posX + cubeWidth / 2, posY + cubeDepth / 2, 0)
+      const cb4 = binToCanvas(posX - cubeWidth / 2, posY + cubeDepth / 2, 0)
+
+      const ct1 = binToCanvas(posX - cubeWidth / 2, posY - cubeDepth / 2, height)
+      const ct2 = binToCanvas(posX + cubeWidth / 2, posY - cubeDepth / 2, height)
+      const ct3 = binToCanvas(posX + cubeWidth / 2, posY + cubeDepth / 2, height)
+      const ct4 = binToCanvas(posX - cubeWidth / 2, posY + cubeDepth / 2, height)
+
+      // =====================================================
+      // TRANSPARENT SIDES (hanya wireframe)
+      // =====================================================
+
+      // Front face - TRANSPARENT dengan outline
+      ctx.strokeStyle = colors.primary
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(cb1.x, cb1.y)
+      ctx.lineTo(cb2.x, cb2.y)
+      ctx.lineTo(ct2.x, ct2.y)
+      ctx.lineTo(ct1.x, ct1.y)
+      ctx.closePath()
+      ctx.stroke()
+
+      // Right face - TRANSPARENT dengan outline
+      ctx.strokeStyle = colors.primary
+      ctx.beginPath()
+      ctx.moveTo(cb2.x, cb2.y)
+      ctx.lineTo(cb3.x, cb3.y)
+      ctx.lineTo(ct3.x, ct3.y)
+      ctx.lineTo(ct2.x, ct2.y)
+      ctx.closePath()
+      ctx.stroke()
+
+      // Left face - TRANSPARENT dengan outline
+      ctx.strokeStyle = colors.primary
+      ctx.beginPath()
+      ctx.moveTo(cb1.x, cb1.y)
+      ctx.lineTo(cb4.x, cb4.y)
+      ctx.lineTo(ct4.x, ct4.y)
+      ctx.lineTo(ct1.x, ct1.y)
+      ctx.closePath()
+      ctx.stroke()
+
+      // Back face - TRANSPARENT dengan outline
+      ctx.strokeStyle = colors.primary
+      ctx.beginPath()
+      ctx.moveTo(cb4.x, cb4.y)
+      ctx.lineTo(cb3.x, cb3.y)
+      ctx.lineTo(ct3.x, ct3.y)
+      ctx.lineTo(ct4.x, ct4.y)
+      ctx.closePath()
+      ctx.stroke()
+
+      // =====================================================
+      // TOP FACE - SOLID (tidak transparan)
+      // =====================================================
+      const gradientTop = ctx.createRadialGradient(
+        (ct1.x + ct2.x + ct3.x + ct4.x) / 4,
+        (ct1.y + ct2.y + ct3.y + ct4.y) / 4,
+        0,
+        (ct1.x + ct2.x + ct3.x + ct4.x) / 4,
+        (ct1.y + ct2.y + ct3.y + ct4.y) / 4,
+        50
+      )
+      gradientTop.addColorStop(0, colors.light)
+      gradientTop.addColorStop(1, colors.primary)
+
+      ctx.fillStyle = gradientTop
+      ctx.beginPath()
+      ctx.moveTo(ct1.x, ct1.y)
+      ctx.lineTo(ct2.x, ct2.y)
+      ctx.lineTo(ct3.x, ct3.y)
+      ctx.lineTo(ct4.x, ct4.y)
+      ctx.closePath()
+      ctx.fill()
+      ctx.strokeStyle = colors.dark
+      ctx.lineWidth = 2
+      ctx.stroke()
+
+      // =====================================================
+      // WIREFRAME VERTICAL EDGES (untuk volume)
+      // =====================================================
+      ctx.strokeStyle = colors.secondary
+      ctx.lineWidth = 1.5
+      ctx.setLineDash([])
+
+      // 4 vertical edges
+      ctx.beginPath()
+      ctx.moveTo(cb1.x, cb1.y); ctx.lineTo(ct1.x, ct1.y)
+      ctx.moveTo(cb2.x, cb2.y); ctx.lineTo(ct2.x, ct2.y)
+      ctx.moveTo(cb3.x, cb3.y); ctx.lineTo(ct3.x, ct3.y)
+      ctx.moveTo(cb4.x, cb4.y); ctx.lineTo(ct4.x, ct4.y)
+      ctx.stroke()
+
+      // =====================================================
+      // LABELS
+      // =====================================================
+      const labelX = (ct1.x + ct2.x + ct3.x + ct4.x) / 4
+      const labelY = (ct1.y + ct2.y + ct3.y + ct4.y) / 4
+
+      // Distance label
+      ctx.fillStyle = '#FFFFFF'
+      ctx.strokeStyle = '#1F2937'
+      ctx.lineWidth = 3
+      ctx.font = 'bold 12px monospace'
+      ctx.strokeText(`${distance.toFixed(0)}cm`, labelX - 20, labelY)
+      ctx.fillText(`${distance.toFixed(0)}cm`, labelX - 20, labelY)
+
+      // Sensor label
+      ctx.font = '10px monospace'
+      ctx.fillStyle = '#6B7280'
+      ctx.fillText(label, labelX - 10, labelY - 12)
+
+      // Waste height below
+      const wasteHeightCm = distanceToWasteHeight(distance)
+      ctx.font = '9px monospace'
+      ctx.fillStyle = colors.dark
+      ctx.fillText(`↑${wasteHeightCm.toFixed(0)}cm`, labelX - 18, labelY + 12)
+    }
+
+    // =====================================================
+    // ACAK URUTAN RENDERING (untuk depth variation)
+    // =====================================================
+    // Array of cubes dengan data lengkap
+    const cubes = [
+      {
+        pos: SENSOR_POSITIONS.topLeft,
+        height: wasteHeights.topLeft,
+        label: 'TL',
+        distance: sensors.topLeft,
+        // Tambahkan sedikit offset acak untuk visual variety
+        offsetX: Math.sin(sensors.topLeft) * 2,
+        offsetY: Math.cos(sensors.topLeft) * 2
+      },
+      {
+        pos: SENSOR_POSITIONS.topRight,
+        height: wasteHeights.topRight,
+        label: 'TR',
+        distance: sensors.topRight,
+        offsetX: Math.sin(sensors.topRight + 1) * 2,
+        offsetY: Math.cos(sensors.topRight + 1) * 2
+      },
+      {
+        pos: SENSOR_POSITIONS.bottomLeft,
+        height: wasteHeights.bottomLeft,
+        label: 'BL',
+        distance: sensors.bottomLeft,
+        offsetX: Math.sin(sensors.bottomLeft + 2) * 2,
+        offsetY: Math.cos(sensors.bottomLeft + 2) * 2
+      },
+      {
+        pos: SENSOR_POSITIONS.bottomRight,
+        height: wasteHeights.bottomRight,
+        label: 'BR',
+        distance: sensors.bottomRight,
+        offsetX: Math.sin(sensors.bottomRight + 3) * 2,
+        offsetY: Math.cos(sensors.bottomRight + 3) * 2
+      }
+    ]
+
+    // Sort by Y position (back to front) untuk proper depth
+    // Tapi dengan sedikit randomness berdasarkan height
+    cubes.sort((a, b) => {
+      const aDepth = a.pos.y + (a.height * 0.1)  // Height influence depth slightly
+      const bDepth = b.pos.y + (b.height * 0.1)
+      return aDepth - bDepth
+    })
+
+    // Draw cubes dalam urutan yang sudah diacak
+    cubes.forEach(cube => {
+      drawWasteCube(
+        cube.pos.x + cube.offsetX,
+        cube.pos.y + cube.offsetY,
+        cube.height,
+        cube.label,
+        cube.distance
+      )
+    })
+
+    // =====================================================
+    // 3. LEGEND & SCALE
+    // =====================================================
+
+    // Scale indicator on the left
+    ctx.strokeStyle = '#6B7280'
+    ctx.lineWidth = 2
+    const scaleX = 30
+    const scaleBottomY = centerY
+    const scaleTopY = centerY - BIN_HEIGHT * scale
+
+    // Scale line
+    ctx.beginPath()
+    ctx.moveTo(scaleX, scaleBottomY)
+    ctx.lineTo(scaleX, scaleTopY)
+    ctx.stroke()
+
+    // Scale markers
+    ctx.font = '10px monospace'
+    ctx.fillStyle = '#6B7280'
+    for (let i = 0; i <= 4; i++) {
+      const y = scaleBottomY - (BIN_HEIGHT * scale * i / 4)
+      const label = (BIN_HEIGHT * i / 4).toFixed(0)
+
+      ctx.beginPath()
+      ctx.moveTo(scaleX - 5, y)
+      ctx.lineTo(scaleX + 5, y)
+      ctx.stroke()
+
+      ctx.fillText(label + 'cm', scaleX + 10, y + 4)
+    }
+
+    // Bin dimensions label
+    ctx.font = 'bold 11px monospace'
+    ctx.fillStyle = '#374151'
+    ctx.fillText(`Bin: ${BIN_WIDTH}×${BIN_DEPTH}×${BIN_HEIGHT}cm`, 10, 20)
+
+  }, [sensorData, colors])
+
+  // =====================================================
+  // RENDER COMPONENT
+  // =====================================================
+  const getBinName = () => {
+    switch (binType) {
+      case 'organic': return '🌱 Organic Waste'
+      case 'anorganic': return '♻️ Anorganic Waste'
+      case 'residue': return '🗑️ Residue Waste'
+    }
+  }
+
+  const getAverageHeight = () => {
+    if (!sensorData) return 0
+    const avgDistance = (sensorData.topLeft + sensorData.topRight + sensorData.bottomLeft + sensorData.bottomRight) / 4
+    const avgWasteHeight = distanceToWasteHeight(avgDistance)
+    return wasteHeightToPercent(avgWasteHeight)
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="mb-4">
+        <h2 className="text-xl font-semibold mb-2" style={{ color: colors.primary }}>
+          {getBinName()}
+        </h2>
+        <div className="flex items-center justify-between text-sm text-gray-600">
+          <span>Avg Fill Level: <strong>{getAverageHeight().toFixed(1)}%</strong></span>
+          {!sensorData && <span className="text-orange-500 text-xs">⚠️ No data</span>}
+        </div>
+      </div>
+
+      <canvas
+        ref={canvasRef}
+        className="w-full"
+        style={{ maxWidth: '500px', margin: '0 auto', display: 'block' }}
+      />
+
+      {sensorData && (
+        <div className="mt-4">
+          <div className="text-xs text-gray-500 mb-2 font-semibold">Sensor Readings (Distance from top):</div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="bg-gray-50 p-2 rounded">
+              <div className="flex justify-between">
+                <span className="text-gray-500">TL (12.5, 12.5):</span>
+                <strong>{sensorData.topLeft}cm</strong>
+              </div>
+              <div className="text-xs text-gray-400">
+                Waste: {distanceToWasteHeight(sensorData.topLeft).toFixed(0)}cm
+              </div>
+            </div>
+            <div className="bg-gray-50 p-2 rounded">
+              <div className="flex justify-between">
+                <span className="text-gray-500">TR (37.5, 12.5):</span>
+                <strong>{sensorData.topRight}cm</strong>
+              </div>
+              <div className="text-xs text-gray-400">
+                Waste: {distanceToWasteHeight(sensorData.topRight).toFixed(0)}cm
+              </div>
+            </div>
+            <div className="bg-gray-50 p-2 rounded">
+              <div className="flex justify-between">
+                <span className="text-gray-500">BL (12.5, 37.5):</span>
+                <strong>{sensorData.bottomLeft}cm</strong>
+              </div>
+              <div className="text-xs text-gray-400">
+                Waste: {distanceToWasteHeight(sensorData.bottomLeft).toFixed(0)}cm
+              </div>
+            </div>
+            <div className="bg-gray-50 p-2 rounded">
+              <div className="flex justify-between">
+                <span className="text-gray-500">BR (37.5, 37.5):</span>
+                <strong>{sensorData.bottomRight}cm</strong>
+              </div>
+              <div className="text-xs text-gray-400">
+                Waste: {distanceToWasteHeight(sensorData.bottomRight).toFixed(0)}cm
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
