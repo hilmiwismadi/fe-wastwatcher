@@ -87,6 +87,9 @@ export interface AggregatedComposition {
 export interface DailyAnalytics {
   analysis_date?: string;
   time_interval?: string;
+  wib_time_display?: string;
+  deviceid?: string;
+  category?: string;
   device_count?: number;
   data_points?: number;
   avg_weight: number;
@@ -180,7 +183,7 @@ class ApiService {
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout (increased for large datasets)
 
         const response = await fetch(`${API_BASE_URL}${endpoint}`, {
           signal: controller.signal,
@@ -283,12 +286,13 @@ class ApiService {
     return this.fetchApi<AggregatedComposition>('/api/analytics/composition/aggregated');
   }
 
-  async getDailyAnalytics(days?: number, category?: string, startDate?: string, endDate?: string): Promise<ApiResponse<DailyAnalytics[]>> {
+  async getDailyAnalytics(days?: number, category?: string, startDate?: string, endDate?: string, deviceId?: string): Promise<ApiResponse<DailyAnalytics[]>> {
     const params = new URLSearchParams();
     if (days) params.append('days', days.toString());
     if (category) params.append('category', category);
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
+    if (deviceId) params.append('deviceId', deviceId);
 
     const query = params.toString() ? `?${params.toString()}` : '';
     return this.fetchApi<DailyAnalytics[]>(`/api/analytics/daily${query}`);
@@ -314,6 +318,16 @@ class ApiService {
     return this.fetchApi<DailyAnalytics[]>(`/api/analytics/intervals/5-minute${query}`);
   }
 
+  async getFiveMinuteIntervalDataForBin(trashbinid: string, startDate?: string, endDate?: string): Promise<ApiResponse<DailyAnalytics[]>> {
+    const params = new URLSearchParams();
+    params.append('trashbinid', trashbinid);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.fetchApi<DailyAnalytics[]>(`/api/analytics/intervals/5-minute${query}`);
+  }
+
   async getHourlyIntervalData(deviceId?: string, category?: string, startDate?: string, endDate?: string): Promise<ApiResponse<DailyAnalytics[]>> {
     const params = new URLSearchParams();
     if (deviceId) params.append('deviceId', deviceId);
@@ -323,6 +337,27 @@ class ApiService {
 
     const query = params.toString() ? `?${params.toString()}` : '';
     return this.fetchApi<DailyAnalytics[]>(`/api/analytics/intervals/hourly${query}`);
+  }
+
+  async getHourlyIntervalDataForBin(trashbinid: string, startDate?: string, endDate?: string): Promise<ApiResponse<DailyAnalytics[]>> {
+    const params = new URLSearchParams();
+    params.append('trashbinid', trashbinid);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.fetchApi<DailyAnalytics[]>(`/api/analytics/intervals/hourly${query}`);
+  }
+
+  async getDailyAnalyticsForBin(trashbinid: string, days?: number, startDate?: string, endDate?: string): Promise<ApiResponse<DailyAnalytics[]>> {
+    const params = new URLSearchParams();
+    params.append('trashbinid', trashbinid);
+    if (days) params.append('days', days.toString());
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.fetchApi<DailyAnalytics[]>(`/api/analytics/daily${query}`);
   }
 
   async getFillLevelDistribution(): Promise<ApiResponse<FillLevelDistribution[]>> {

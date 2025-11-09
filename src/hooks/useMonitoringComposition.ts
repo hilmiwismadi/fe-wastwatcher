@@ -38,9 +38,9 @@ export const useMonitoringComposition = () => {
     if (!compositionData) return [];
 
     const data = compositionData.categories.map(cat => ({
-      name: cat.category === 'B3' ? 'Residue' : cat.category === 'Inorganic' ? 'Anorganic' : cat.category,
+      name: cat.category === 'B3' ? 'Residue' : cat.category === 'Inorganic' || cat.category === 'Anorganic' ? 'Anorganic' : cat.category,
       value: parseFloat(cat.total_weight),
-      color: cat.category === 'Organic' ? '#22c55e' : cat.category === 'Inorganic' ? '#eab308' : '#ef4444'
+      color: cat.category === 'Organic' ? '#22c55e' : (cat.category === 'Inorganic' || cat.category === 'Anorganic') ? '#eab308' : '#ef4444'
     }));
 
     const total = data.reduce((sum, item) => sum + item.value, 0);
@@ -57,9 +57,9 @@ export const useMonitoringComposition = () => {
     if (!compositionData) return [];
 
     const data = compositionData.categories.map(cat => ({
-      name: cat.category === 'B3' ? 'Residue' : cat.category === 'Inorganic' ? 'Anorganic' : cat.category,
+      name: cat.category === 'B3' ? 'Residue' : cat.category === 'Inorganic' || cat.category === 'Anorganic' ? 'Anorganic' : cat.category,
       value: parseFloat(cat.avg_volume_percentage),
-      color: cat.category === 'Organic' ? '#22c55e' : cat.category === 'Inorganic' ? '#eab308' : '#ef4444'
+      color: cat.category === 'Organic' ? '#22c55e' : (cat.category === 'Inorganic' || cat.category === 'Anorganic') ? '#eab308' : '#ef4444'
     }));
 
     return data.map(item => ({

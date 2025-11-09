@@ -7,6 +7,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { ToggleButton } from "./ToggleButton";
 import { BarChart } from "./BarChart";
 import { apiService, Device } from "@/services/api";
+import { useMonitoringComposition } from "@/hooks/useMonitoringComposition";
 
 // Status categories based on fill percentage
 const getStatusCategory = (percentage: number): 'Penuh' | 'Hampir Penuh' | 'Menengah' | 'Kosong' => {
@@ -86,7 +87,8 @@ const MonitoringPage = () => {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Note: Not using aggregated composition - using Kantin LT 1 specific data instead
+  // Use aggregated composition data from all bins
+  const { compositionData, loading: compositionLoading, error: compositionError, volumeData: aggregatedVolumeData, weightData: aggregatedWeightData } = useMonitoringComposition();
 
   React.useEffect(() => {
     const fetchData = async () => {
@@ -196,37 +198,30 @@ const MonitoringPage = () => {
     return counts;
   }, [bins]);
 
-  // Use Kantin LT 1 specific data for Weight and Volume charts
-  const kantinLt1 = useMemo(() => bins.find(bin => bin.name === 'Kantin LT 1'), [bins]);
-
+  // Use aggregated composition data for Weight and Volume charts
   const volumeData = useMemo(() => {
-    if (!kantinLt1) return [
-      { name: "Organic", value: 81.5, color: "#22c55e" },
-      { name: "Anorganic", value: 39.4, color: "#eab308" },
-      { name: "Residue", value: 19.4, color: "#ef4444" }
-    ];
-
+    if (aggregatedVolumeData.length > 0) {
+      return aggregatedVolumeData;
+    }
+    // Fallback data
     return [
-      { name: "Organic", value: kantinLt1.organic_percentage, color: "#22c55e" },
-      { name: "Anorganic", value: kantinLt1.anorganic_percentage, color: "#eab308" },
-      { name: "Residue", value: kantinLt1.residue_percentage, color: "#ef4444" }
+      { name: "Organic", value: 0, color: "#22c55e" },
+      { name: "Anorganic", value: 0, color: "#eab308" },
+      { name: "Residue", value: 0, color: "#ef4444" }
     ];
-  }, [kantinLt1]);
+  }, [aggregatedVolumeData]);
 
   const weightData = useMemo(() => {
-    if (!kantinLt1) return [
-      { name: "Organic", value: 1222.5, color: "#22c55e" },
-      { name: "Anorganic", value: 472.8, color: "#eab308" },
-      { name: "Residue", value: 155.2, color: "#ef4444" }
-    ];
-
-    // Return actual weight values in grams (not percentages)
+    if (aggregatedWeightData.length > 0) {
+      return aggregatedWeightData;
+    }
+    // Fallback data
     return [
-      { name: "Organic", value: Math.round(kantinLt1.organic_weight * 10) / 10, color: "#22c55e" },
-      { name: "Anorganic", value: Math.round(kantinLt1.anorganic_weight * 10) / 10, color: "#eab308" },
-      { name: "Residue", value: Math.round(kantinLt1.residue_weight * 10) / 10, color: "#ef4444" }
+      { name: "Organic", value: 0, color: "#22c55e" },
+      { name: "Anorganic", value: 0, color: "#eab308" },
+      { name: "Residue", value: 0, color: "#ef4444" }
     ];
-  }, [kantinLt1]);
+  }, [aggregatedWeightData]);
 
   if (loading) {
     return (
@@ -258,241 +253,234 @@ const MonitoringPage = () => {
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-gray-100 to-gray-200 flex flex-col overflow-hidden">
-      {/* 1st Row: Header (10% height) */}
-      <div className="h-[10vh] flex items-center px-4 sm:px-6">
-        <h1 className="text-3xl sm:text-4xl font-bold text-blue-600">Pemantauan Harian</h1>
-      </div>
-
-      {/* 2nd Row: Status Overview + Filters + Charts (20% height) */}
-      <div className="h-[20vh] px-4 sm:px-6 pb-3">
-        <div className="h-full grid grid-cols-3 gap-3 sm:gap-4">
-          {/* Left Section: 2/3 width */}
-          <div className="col-span-2 flex flex-col gap-2">
-            {/* Status Boxes */}
-            <div className="flex-1 grid grid-cols-4 gap-2 sm:gap-3">
-              {/* Penuh */}
-              <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-lg sm:rounded-xl p-3 sm:p-4 text-white shadow-sm border-2 border-red-600">
-                <h2 className="text-base sm:text-xl font-bold mb-0.5 sm:mb-1">Penuh</h2>
-                <p className="text-3xl sm:text-4xl font-bold">{statusCounts['Penuh']}</p>
-              </div>
-
-              {/* Hampir Penuh */}
-              <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm border-2 border-red-500">
-                <h2 className="text-base sm:text-xl font-bold mb-0.5 sm:mb-1 text-gray-800">Hampir Penuh</h2>
-                <p className="text-3xl sm:text-4xl font-bold text-gray-800">{statusCounts['Hampir Penuh']}</p>
-              </div>
-
-              {/* Menengah */}
-              <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm border-2 border-yellow-400">
-                <h2 className="text-base sm:text-xl font-bold mb-0.5 sm:mb-1 text-gray-800">Menengah</h2>
-                <p className="text-3xl sm:text-4xl font-bold text-gray-800">{statusCounts['Menengah']}</p>
-              </div>
-
-              {/* Kosong */}
-              <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm border-2 border-blue-400">
-                <h2 className="text-base sm:text-xl font-bold mb-0.5 sm:mb-1 text-gray-800">Kosong</h2>
-                <p className="text-3xl sm:text-4xl font-bold text-gray-800">{statusCounts['Kosong']}</p>
-              </div>
-            </div>
-
-            {/* Search and Filters */}
-            <div className="h-10 sm:h-12 flex gap-2 sm:gap-3">
-              {/* Search */}
-              <div className="flex-1 relative">
-                <input
-                  type="text"
-                  placeholder="Cari Bin................................."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-full px-3 pr-10 border-2 border-blue-300 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 text-gray-800"
-                />
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
-              </div>
-
-              {/* Floor */}
-              <div className="w-32 sm:w-40 relative">
-                <button
-                  onClick={() => {
-                    setFloorDropdownOpen(!floorDropdownOpen);
-                    setStatusDropdownOpen(false);
-                  }}
-                  className="w-full h-full px-2 sm:px-3 border-2 border-blue-300 rounded-lg text-sm font-medium bg-white flex items-center justify-between hover:border-blue-500 text-gray-800"
-                >
-                  <span className="truncate">{selectedFloor}</span>
-                  <ChevronDown size={16} />
-                </button>
-                {floorDropdownOpen && (
-                  <div className="absolute z-20 w-full mt-1 bg-white border-2 border-blue-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {floorOptions.map((floor) => (
-                      <div
-                        key={floor}
-                        onClick={() => {
-                          setSelectedFloor(floor);
-                          setFloorDropdownOpen(false);
-                        }}
-                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm font-medium text-gray-800"
-                      >
-                        {floor}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Status */}
-              <div className="w-32 sm:w-40 relative">
-                <button
-                  onClick={() => {
-                    setStatusDropdownOpen(!statusDropdownOpen);
-                    setFloorDropdownOpen(false);
-                  }}
-                  className="w-full h-full px-2 sm:px-3 border-2 border-blue-300 rounded-lg text-sm font-medium bg-white flex items-center justify-between hover:border-blue-500 text-gray-800"
-                >
-                  <span className="truncate">{selectedStatus}</span>
-                  <ChevronDown size={16} />
-                </button>
-                {statusDropdownOpen && (
-                  <div className="absolute z-20 w-full mt-1 bg-white border-2 border-blue-300 rounded-lg shadow-lg">
-                    {statusOptions.map((status) => (
-                      <div
-                        key={status}
-                        onClick={() => {
-                          setSelectedStatus(status);
-                          setStatusDropdownOpen(false);
-                        }}
-                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm font-medium text-gray-800"
-                      >
-                        {status}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Apply Button */}
-              <button className="w-20 sm:w-24 px-2 sm:px-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg text-sm font-semibold hover:from-blue-600 hover:to-blue-700 shadow-sm transition-all">
-                Penuh
-              </button>
-            </div>
-          </div>
-
-          {/* Right Section: Charts */}
-          <div className="col-span-1 grid grid-cols-2 gap-2 sm:gap-3">
-            {/* Volume */}
-            <div className="bg-white rounded-lg p-2 shadow-sm border">
-              <div className="flex justify-between items-center mb-1">
-                <h3 className="text-xs sm:text-sm font-bold text-gray-800">Volume</h3>
-                <ToggleButton
-                  value={volumeToggle === 'donut' ? 'weight' : 'volume'}
-                  onChange={(val) => setVolumeToggle(val === 'weight' ? 'donut' : 'percentage')}
-                  options={[
-                    { value: "weight", label: "Chart" },
-                    { value: "volume", label: "%" },
-                  ]}
-                  size="small"
-                />
-              </div>
-              <div className="h-[calc(100%-1.5rem)]">
-                {volumeToggle === "donut" ? (
-                  <div className="flex justify-center items-center h-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={volumeData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={30}
-                          outerRadius={50}
-                          dataKey="value"
-                          onMouseEnter={(_, index) => setSelectedVolumeSlice(index)}
-                          onMouseLeave={() => setSelectedVolumeSlice(null)}
-                        >
-                          {volumeData.map((entry, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={entry.color}
-                              stroke={selectedVolumeSlice === index ? "#000" : "none"}
-                              strokeWidth={selectedVolumeSlice === index ? 2 : 0}
-                            />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <div className="h-full">
-                    <BarChart
-                      data={volumeData}
-                      selectedIndex={selectedVolumeSlice}
-                      onBarHover={setSelectedVolumeSlice}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Weight */}
-            <div className="bg-white rounded-lg p-2 shadow-sm border">
-              <div className="flex justify-between items-center mb-1">
-                <h3 className="text-xs sm:text-sm font-bold text-gray-800">Weight</h3>
-                <ToggleButton
-                  value={weightToggle === 'donut' ? 'weight' : 'volume'}
-                  onChange={(val) => setWeightToggle(val === 'weight' ? 'donut' : 'percentage')}
-                  options={[
-                    { value: "weight", label: "Chart" },
-                    { value: "volume", label: "%" },
-                  ]}
-                  size="small"
-                />
-              </div>
-              <div className="h-[calc(100%-1.5rem)]">
-                {weightToggle === "donut" ? (
-                  <div className="flex justify-center items-center h-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={weightData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={30}
-                          outerRadius={50}
-                          dataKey="value"
-                          onMouseEnter={(_, index) => setSelectedWeightSlice(index)}
-                          onMouseLeave={() => setSelectedWeightSlice(null)}
-                        >
-                          {weightData.map((entry, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={entry.color}
-                              stroke={selectedWeightSlice === index ? "#000" : "none"}
-                              strokeWidth={selectedWeightSlice === index ? 2 : 0}
-                            />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <div className="h-full">
-                    <BarChart
-                      data={weightData}
-                      selectedIndex={selectedWeightSlice}
-                      onBarHover={setSelectedWeightSlice}
-                      unit="g"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 flex flex-col">
+      {/* Header */}
+      <div className="sticky top-0 z-30 bg-white shadow-sm border-b border-gray-200">
+        <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-600">Pemantauan Harian</h1>
         </div>
       </div>
 
-      {/* 3rd Row: Bin Grid (70% height, scrollable) */}
-      <div className="flex-1 px-4 sm:px-6 pb-4 sm:pb-6 overflow-hidden">
-        <div className="h-full overflow-y-auto">
-          <div className="grid grid-cols-6 gap-2 sm:gap-3 pb-4">
+      {/* Main Content */}
+      <div className="flex-1 px-3 sm:px-4 md:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4">
+        {/* Status Overview - Mobile: Stack, Desktop: Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+          {/* Penuh */}
+          <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-lg p-3 sm:p-4 text-white shadow-md border-2 border-red-600">
+            <h2 className="text-sm sm:text-base md:text-lg font-bold mb-1">Penuh</h2>
+            <p className="text-2xl sm:text-3xl md:text-4xl font-bold">{statusCounts['Penuh']}</p>
+          </div>
+
+          {/* Hampir Penuh */}
+          <div className="bg-white rounded-lg p-3 sm:p-4 shadow-md border-2 border-orange-500">
+            <h2 className="text-sm sm:text-base md:text-lg font-bold mb-1 text-gray-800">Hampir Penuh</h2>
+            <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-orange-600">{statusCounts['Hampir Penuh']}</p>
+          </div>
+
+          {/* Menengah */}
+          <div className="bg-white rounded-lg p-3 sm:p-4 shadow-md border-2 border-yellow-400">
+            <h2 className="text-sm sm:text-base md:text-lg font-bold mb-1 text-gray-800">Menengah</h2>
+            <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-yellow-600">{statusCounts['Menengah']}</p>
+          </div>
+
+          {/* Kosong */}
+          <div className="bg-white rounded-lg p-3 sm:p-4 shadow-md border-2 border-blue-400">
+            <h2 className="text-sm sm:text-base md:text-lg font-bold mb-1 text-gray-800">Kosong</h2>
+            <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-600">{statusCounts['Kosong']}</p>
+          </div>
+        </div>
+
+        {/* Charts Section - Mobile: Stack, Desktop: Side by side */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          {/* Volume Chart */}
+          <div className="bg-white rounded-lg p-3 sm:p-4 shadow-md border border-gray-200">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-base sm:text-lg font-bold text-gray-800">Volume</h3>
+              <ToggleButton
+                value={volumeToggle === 'donut' ? 'weight' : 'volume'}
+                onChange={(val) => setVolumeToggle(val === 'weight' ? 'donut' : 'percentage')}
+                options={[
+                  { value: "weight", label: "Chart" },
+                  { value: "volume", label: "%" },
+                ]}
+                size="small"
+              />
+            </div>
+            <div className="h-48 sm:h-56">
+              {volumeToggle === "donut" ? (
+                <div className="flex justify-center items-center h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={volumeData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={70}
+                        dataKey="value"
+                        onMouseEnter={(_, index) => setSelectedVolumeSlice(index)}
+                        onMouseLeave={() => setSelectedVolumeSlice(null)}
+                      >
+                        {volumeData.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={entry.color}
+                            stroke={selectedVolumeSlice === index ? "#000" : "none"}
+                            strokeWidth={selectedVolumeSlice === index ? 2 : 0}
+                          />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-full">
+                  <BarChart
+                    data={volumeData}
+                    selectedIndex={selectedVolumeSlice}
+                    onBarHover={setSelectedVolumeSlice}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Weight Chart */}
+          <div className="bg-white rounded-lg p-3 sm:p-4 shadow-md border border-gray-200">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-base sm:text-lg font-bold text-gray-800">Weight</h3>
+              <ToggleButton
+                value={weightToggle === 'donut' ? 'weight' : 'volume'}
+                onChange={(val) => setWeightToggle(val === 'weight' ? 'donut' : 'percentage')}
+                options={[
+                  { value: "weight", label: "Chart" },
+                  { value: "volume", label: "%" },
+                ]}
+                size="small"
+              />
+            </div>
+            <div className="h-48 sm:h-56">
+              {weightToggle === "donut" ? (
+                <div className="flex justify-center items-center h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={weightData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={70}
+                        dataKey="value"
+                        onMouseEnter={(_, index) => setSelectedWeightSlice(index)}
+                        onMouseLeave={() => setSelectedWeightSlice(null)}
+                      >
+                        {weightData.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={entry.color}
+                            stroke={selectedWeightSlice === index ? "#000" : "none"}
+                            strokeWidth={selectedWeightSlice === index ? 2 : 0}
+                          />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-full">
+                  <BarChart
+                    data={weightData}
+                    selectedIndex={selectedWeightSlice}
+                    onBarHover={setSelectedWeightSlice}
+                    unit="g"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Search and Filters - Mobile: Stack, Desktop: Row */}
+        <div className="bg-white rounded-lg p-3 sm:p-4 shadow-md border border-gray-200">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            {/* Search */}
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder="Cari Bin..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border-2 border-blue-300 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 text-gray-800 pr-10"
+              />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500" size={18} />
+            </div>
+
+            {/* Floor Dropdown */}
+            <div className="w-full sm:w-40 relative">
+              <button
+                onClick={() => {
+                  setFloorDropdownOpen(!floorDropdownOpen);
+                  setStatusDropdownOpen(false);
+                }}
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border-2 border-blue-300 rounded-lg text-sm font-medium bg-white flex items-center justify-between hover:border-blue-500 text-gray-800"
+              >
+                <span className="truncate">{selectedFloor}</span>
+                <ChevronDown size={18} />
+              </button>
+              {floorDropdownOpen && (
+                <div className="absolute z-20 w-full mt-1 bg-white border-2 border-blue-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {floorOptions.map((floor) => (
+                    <div
+                      key={floor}
+                      onClick={() => {
+                        setSelectedFloor(floor);
+                        setFloorDropdownOpen(false);
+                      }}
+                      className="px-3 sm:px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm font-medium text-gray-800"
+                    >
+                      {floor}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Status Dropdown */}
+            <div className="w-full sm:w-40 relative">
+              <button
+                onClick={() => {
+                  setStatusDropdownOpen(!statusDropdownOpen);
+                  setFloorDropdownOpen(false);
+                }}
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border-2 border-blue-300 rounded-lg text-sm font-medium bg-white flex items-center justify-between hover:border-blue-500 text-gray-800"
+              >
+                <span className="truncate">{selectedStatus}</span>
+                <ChevronDown size={18} />
+              </button>
+              {statusDropdownOpen && (
+                <div className="absolute z-20 w-full mt-1 bg-white border-2 border-blue-300 rounded-lg shadow-lg">
+                  {statusOptions.map((status) => (
+                    <div
+                      key={status}
+                      onClick={() => {
+                        setSelectedStatus(status);
+                        setStatusDropdownOpen(false);
+                      }}
+                      className="px-3 sm:px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm font-medium text-gray-800"
+                    >
+                      {status}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Bin Grid - Responsive */}
+        <div className="bg-white rounded-lg p-3 sm:p-4 shadow-md border border-gray-200">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4">Trash Bins</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
             {filteredBins.map((bin) => {
               const borderColor = getBorderColor(bin.max_percentage);
               const bgColor = getBackgroundColor(bin.max_percentage);
@@ -502,25 +490,25 @@ const MonitoringPage = () => {
                 <div
                   key={bin.trashbinid}
                   onClick={() => router.push(`/${slug}`)}
-                  className={`bg-gradient-to-br ${bgColor} rounded-lg sm:rounded-xl p-2 sm:p-3 border-4 ${borderColor} hover:shadow-lg transition-all cursor-pointer hover:scale-105`}
+                  className={`bg-gradient-to-br ${bgColor} rounded-lg p-3 sm:p-4 border-3 sm:border-4 ${borderColor} hover:shadow-xl transition-all cursor-pointer hover:scale-105 relative`}
                 >
-                  <h3 className="font-bold text-center mb-1.5 sm:mb-2 text-xs sm:text-sm truncate text-gray-800" title={bin.name}>
+                  <h3 className="font-bold text-center mb-2 sm:mb-3 text-sm sm:text-base text-gray-800" title={bin.name}>
                     {bin.name}
                   </h3>
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center text-[10px] sm:text-xs">
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <div className="flex justify-between items-center text-xs sm:text-sm">
                       <span className="text-gray-700 font-medium">Organik</span>
                       <span className={`font-bold ${getPercentageColor(bin.organic_percentage)}`}>
                         {bin.organic_percentage.toFixed(1)}%
                       </span>
                     </div>
-                    <div className="flex justify-between items-center text-[10px] sm:text-xs">
+                    <div className="flex justify-between items-center text-xs sm:text-sm">
                       <span className="text-gray-700 font-medium">Anorganik</span>
                       <span className={`font-bold ${getPercentageColor(bin.anorganic_percentage)}`}>
                         {bin.anorganic_percentage.toFixed(1)}%
                       </span>
                     </div>
-                    <div className="flex justify-between items-center text-[10px] sm:text-xs">
+                    <div className="flex justify-between items-center text-xs sm:text-sm">
                       <span className="text-gray-700 font-medium">Residue</span>
                       <span className={`font-bold ${getPercentageColor(bin.residue_percentage)}`}>
                         {bin.residue_percentage.toFixed(1)}%
@@ -533,8 +521,9 @@ const MonitoringPage = () => {
           </div>
 
           {filteredBins.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
-              <p className="text-lg sm:text-xl font-medium">No bins found matching the filters</p>
+            <div className="text-center py-8 sm:py-12 text-gray-500">
+              <AlertCircle className="h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-3 sm:mb-4 text-gray-400" />
+              <p className="text-base sm:text-lg font-medium">No bins found matching the filters</p>
             </div>
           )}
         </div>

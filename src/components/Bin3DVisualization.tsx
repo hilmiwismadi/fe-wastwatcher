@@ -22,7 +22,7 @@ interface Bin3DVisualizationProps {
 // =====================================================
 const BIN_WIDTH = 50    // Panjang bin (cm)
 const BIN_DEPTH = 50    // Lebar bin (cm)
-const BIN_HEIGHT = 80   // Tinggi bin (cm)
+const BIN_HEIGHT = 60   // Tinggi bin (cm) - adjusted for modified bin
 
 // Posisi sensor dalam koordinat bin (cm dari sudut kiri bawah)
 const SENSOR_POSITIONS = {
@@ -57,10 +57,17 @@ export default function Bin3DVisualization({
   // =====================================================
   // KONVERSI DISTANCE KE TINGGI SAMPAH
   // =====================================================
-  // Distance = jarak dari sensor (atas bin) ke permukaan sampah
-  // Tinggi sampah = 80cm - distance
-  const distanceToWasteHeight = (distance: number): number => {
-    return Math.max(0, Math.min(BIN_HEIGHT, BIN_HEIGHT - distance))
+  // Distance = jarak dari sensor (di atas bin) ke permukaan terdeteksi
+  // Baseline: TL/TR read 9cm when closed, BL/BR read 6cm when closed
+  // When closed (baseline): show full bin = 60cm
+  // Sensor is mounted ABOVE the bin, so distance includes air gap + bin content
+  const distanceToWasteHeight = (distance: number, sensorPosition: 'TL' | 'TR' | 'BL' | 'BR'): number => {
+    const baseline = (sensorPosition === 'TL' || sensorPosition === 'TR') ? 9 : 6
+    // When at baseline (lid closed): height = 60cm (full bin)
+    // When distance increases: waste decreases
+    // wasteHeight = 60 - (distance - baseline)
+    const wasteHeight = BIN_HEIGHT - (distance - baseline)
+    return Math.max(0, Math.min(BIN_HEIGHT, wasteHeight))
   }
 
   // Konversi tinggi sampah ke persentase
@@ -85,15 +92,16 @@ export default function Bin3DVisualization({
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    // Default values jika tidak ada data
-    const sensors = sensorData || { topLeft: 80, topRight: 80, bottomLeft: 80, bottomRight: 80 }
+    // Default values jika tidak ada data (60cm when lid is closed)
+    const sensors = sensorData || { topLeft: 60, topRight: 60, bottomLeft: 60, bottomRight: 60 }
 
     // Konversi distance ke tinggi sampah (dalam cm)
+    // SWAPPED: Top row shows bottom data, Bottom row shows top data (swapped left-right)
     const wasteHeights = {
-      topLeft: distanceToWasteHeight(sensors.topLeft),
-      topRight: distanceToWasteHeight(sensors.topRight),
-      bottomLeft: distanceToWasteHeight(sensors.bottomLeft),
-      bottomRight: distanceToWasteHeight(sensors.bottomRight)
+      topLeft: distanceToWasteHeight(sensors.bottomLeft, 'BL'),    // Shows C (bottomLeft data) - baseline 6cm
+      topRight: distanceToWasteHeight(sensors.bottomRight, 'BR'),  // Shows D (bottomRight data) - baseline 6cm
+      bottomLeft: distanceToWasteHeight(sensors.topRight, 'TR'),   // Shows B (topRight data) - baseline 9cm
+      bottomRight: distanceToWasteHeight(sensors.topLeft, 'TL')    // Shows A (topLeft data) - baseline 9cm
     }
 
     // =====================================================
@@ -192,8 +200,12 @@ export default function Bin3DVisualization({
       posY: number,
       height: number,
       label: string,
-      distance: number
+      distance: number,
+      sensorPosition: 'TL' | 'TR' | 'BL' | 'BR',
+      customColors?: { primary: string, secondary: string, light: string, dark: string }
     ) => {
+      // Use custom colors if provided, otherwise use default bin colors
+      const cubeColors = customColors || colors
       const cubeWidth = 25  // Lebar kubus dalam cm (mengisi 1/2 bin = 50/2 = 25cm)
       const cubeDepth = 25  // Kedalaman kubus dalam cm (mengisi 1/2 bin = 50/2 = 25cm)
 
@@ -213,7 +225,7 @@ export default function Bin3DVisualization({
       // =====================================================
 
       // Front face - TRANSPARENT dengan outline
-      ctx.strokeStyle = colors.primary
+      ctx.strokeStyle = cubeColors.primary
       ctx.lineWidth = 2
       ctx.beginPath()
       ctx.moveTo(cb1.x, cb1.y)
@@ -224,7 +236,7 @@ export default function Bin3DVisualization({
       ctx.stroke()
 
       // Right face - TRANSPARENT dengan outline
-      ctx.strokeStyle = colors.primary
+      ctx.strokeStyle = cubeColors.primary
       ctx.beginPath()
       ctx.moveTo(cb2.x, cb2.y)
       ctx.lineTo(cb3.x, cb3.y)
@@ -234,7 +246,7 @@ export default function Bin3DVisualization({
       ctx.stroke()
 
       // Left face - TRANSPARENT dengan outline
-      ctx.strokeStyle = colors.primary
+      ctx.strokeStyle = cubeColors.primary
       ctx.beginPath()
       ctx.moveTo(cb1.x, cb1.y)
       ctx.lineTo(cb4.x, cb4.y)
@@ -244,7 +256,7 @@ export default function Bin3DVisualization({
       ctx.stroke()
 
       // Back face - TRANSPARENT dengan outline
-      ctx.strokeStyle = colors.primary
+      ctx.strokeStyle = cubeColors.primary
       ctx.beginPath()
       ctx.moveTo(cb4.x, cb4.y)
       ctx.lineTo(cb3.x, cb3.y)
@@ -264,8 +276,8 @@ export default function Bin3DVisualization({
         (ct1.y + ct2.y + ct3.y + ct4.y) / 4,
         50
       )
-      gradientTop.addColorStop(0, colors.light)
-      gradientTop.addColorStop(1, colors.primary)
+      gradientTop.addColorStop(0, cubeColors.light)
+      gradientTop.addColorStop(1, cubeColors.primary)
 
       ctx.fillStyle = gradientTop
       ctx.beginPath()
@@ -275,14 +287,14 @@ export default function Bin3DVisualization({
       ctx.lineTo(ct4.x, ct4.y)
       ctx.closePath()
       ctx.fill()
-      ctx.strokeStyle = colors.dark
+      ctx.strokeStyle = cubeColors.dark
       ctx.lineWidth = 2
       ctx.stroke()
 
       // =====================================================
       // WIREFRAME VERTICAL EDGES (untuk volume)
       // =====================================================
-      ctx.strokeStyle = colors.secondary
+      ctx.strokeStyle = cubeColors.secondary
       ctx.lineWidth = 1.5
       ctx.setLineDash([])
 
@@ -314,49 +326,66 @@ export default function Bin3DVisualization({
       ctx.fillText(label, labelX - 10, labelY - 12)
 
       // Waste height below
-      const wasteHeightCm = distanceToWasteHeight(distance)
+      const wasteHeightCm = distanceToWasteHeight(distance, sensorPosition)
       ctx.font = '9px monospace'
-      ctx.fillStyle = colors.dark
+      ctx.fillStyle = cubeColors.dark
       ctx.fillText(`↑${wasteHeightCm.toFixed(0)}cm`, labelX - 18, labelY + 12)
     }
 
     // =====================================================
     // ACAK URUTAN RENDERING (untuk depth variation)
     // =====================================================
+
+    // Define custom colors for organic bin to distinguish sensors
+    const getSensorColors = (label: string) => {
+      // For organic bin, use default green colors for all sensors
+      // For other bin types, return undefined to use their default colors
+      return undefined
+    }
+
     // Array of cubes dengan data lengkap
+    // SWAPPED: Visual positions swapped with data sources
     const cubes = [
       {
         pos: SENSOR_POSITIONS.topLeft,
         height: wasteHeights.topLeft,
         label: 'TL',
-        distance: sensors.topLeft,
+        distance: sensors.bottomLeft,  // Shows C data at top-left visual position
+        sensorPosition: 'BL' as const,  // Uses BL sensor baseline (6cm)
+        colors: getSensorColors('TL'),
         // Tambahkan sedikit offset acak untuk visual variety
-        offsetX: Math.sin(sensors.topLeft) * 2,
-        offsetY: Math.cos(sensors.topLeft) * 2
+        offsetX: Math.sin(sensors.bottomLeft) * 2,
+        offsetY: Math.cos(sensors.bottomLeft) * 2
       },
       {
         pos: SENSOR_POSITIONS.topRight,
         height: wasteHeights.topRight,
         label: 'TR',
-        distance: sensors.topRight,
-        offsetX: Math.sin(sensors.topRight + 1) * 2,
-        offsetY: Math.cos(sensors.topRight + 1) * 2
+        distance: sensors.bottomRight,  // Shows D data at top-right visual position
+        sensorPosition: 'BR' as const,  // Uses BR sensor baseline (6cm)
+        colors: getSensorColors('TR'),
+        offsetX: Math.sin(sensors.bottomRight + 1) * 2,
+        offsetY: Math.cos(sensors.bottomRight + 1) * 2
       },
       {
         pos: SENSOR_POSITIONS.bottomLeft,
         height: wasteHeights.bottomLeft,
         label: 'BL',
-        distance: sensors.bottomLeft,
-        offsetX: Math.sin(sensors.bottomLeft + 2) * 2,
-        offsetY: Math.cos(sensors.bottomLeft + 2) * 2
+        distance: sensors.topRight,  // Shows B data at bottom-left visual position
+        sensorPosition: 'TR' as const,  // Uses TR sensor baseline (9cm)
+        colors: getSensorColors('BL'),
+        offsetX: Math.sin(sensors.topRight + 2) * 2,
+        offsetY: Math.cos(sensors.topRight + 2) * 2
       },
       {
         pos: SENSOR_POSITIONS.bottomRight,
         height: wasteHeights.bottomRight,
         label: 'BR',
-        distance: sensors.bottomRight,
-        offsetX: Math.sin(sensors.bottomRight + 3) * 2,
-        offsetY: Math.cos(sensors.bottomRight + 3) * 2
+        distance: sensors.topLeft,  // Shows A data at bottom-right visual position
+        sensorPosition: 'TL' as const,  // Uses TL sensor baseline (9cm)
+        colors: getSensorColors('BR'),
+        offsetX: Math.sin(sensors.topLeft + 3) * 2,
+        offsetY: Math.cos(sensors.topLeft + 3) * 2
       }
     ]
 
@@ -375,7 +404,9 @@ export default function Bin3DVisualization({
         cube.pos.y + cube.offsetY,
         cube.height,
         cube.label,
-        cube.distance
+        cube.distance,
+        cube.sensorPosition,
+        cube.colors
       )
     })
 
@@ -431,8 +462,12 @@ export default function Bin3DVisualization({
 
   const getAverageHeight = () => {
     if (!sensorData) return 0
-    const avgDistance = (sensorData.topLeft + sensorData.topRight + sensorData.bottomLeft + sensorData.bottomRight) / 4
-    const avgWasteHeight = distanceToWasteHeight(avgDistance)
+    // Calculate waste height for each sensor with their respective baselines
+    const tlHeight = distanceToWasteHeight(sensorData.topLeft, 'TL')
+    const trHeight = distanceToWasteHeight(sensorData.topRight, 'TR')
+    const blHeight = distanceToWasteHeight(sensorData.bottomLeft, 'BL')
+    const brHeight = distanceToWasteHeight(sensorData.bottomRight, 'BR')
+    const avgWasteHeight = (tlHeight + trHeight + blHeight + brHeight) / 4
     return wasteHeightToPercent(avgWasteHeight)
   }
 
@@ -464,7 +499,7 @@ export default function Bin3DVisualization({
                 <strong>{sensorData.topLeft}cm</strong>
               </div>
               <div className="text-xs text-gray-400">
-                Waste: {distanceToWasteHeight(sensorData.topLeft).toFixed(0)}cm
+                Waste: {distanceToWasteHeight(sensorData.topLeft, 'TL').toFixed(0)}cm (baseline: 9cm)
               </div>
             </div>
             <div className="bg-gray-50 p-2 rounded">
@@ -473,7 +508,7 @@ export default function Bin3DVisualization({
                 <strong>{sensorData.topRight}cm</strong>
               </div>
               <div className="text-xs text-gray-400">
-                Waste: {distanceToWasteHeight(sensorData.topRight).toFixed(0)}cm
+                Waste: {distanceToWasteHeight(sensorData.topRight, 'TR').toFixed(0)}cm (baseline: 9cm)
               </div>
             </div>
             <div className="bg-gray-50 p-2 rounded">
@@ -482,7 +517,7 @@ export default function Bin3DVisualization({
                 <strong>{sensorData.bottomLeft}cm</strong>
               </div>
               <div className="text-xs text-gray-400">
-                Waste: {distanceToWasteHeight(sensorData.bottomLeft).toFixed(0)}cm
+                Waste: {distanceToWasteHeight(sensorData.bottomLeft, 'BL').toFixed(0)}cm (baseline: 6cm)
               </div>
             </div>
             <div className="bg-gray-50 p-2 rounded">
@@ -491,7 +526,7 @@ export default function Bin3DVisualization({
                 <strong>{sensorData.bottomRight}cm</strong>
               </div>
               <div className="text-xs text-gray-400">
-                Waste: {distanceToWasteHeight(sensorData.bottomRight).toFixed(0)}cm
+                Waste: {distanceToWasteHeight(sensorData.bottomRight, 'BR').toFixed(0)}cm (baseline: 6cm)
               </div>
             </div>
           </div>

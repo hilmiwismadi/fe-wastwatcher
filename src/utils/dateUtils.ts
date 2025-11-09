@@ -33,11 +33,23 @@ export const combineDateAndTime = (dateStr: string, timeStr: string): string => 
   return `${dateStr} ${timeStr}:00`;
 };
 
-// Get date range for dummy data (August 13 to September 11, 2025)
+// Get date range for dummy data (September 1 to November 2, 2025)
+// Updated to match the actual seeded data range in the database
+// Note: Most bins have data until Nov 2, while Kantin LT 1 has data until current date
 export const getDummyDataDateRange = () => {
+  // Most bins have data seeded until November 2, 2025
+  const dataEndDate = new Date('2025-11-02');
+  const today = new Date();
+
+  // Use the earlier of: data end date or current date
+  const endDate = today > dataEndDate ? dataEndDate : today;
+
+  const startDate = new Date(endDate);
+  startDate.setMonth(endDate.getMonth() - 2); // 2 months before end date
+
   return {
-    start: "2025-08-13",
-    end: "2025-09-11"
+    start: formatDateForInput(startDate),
+    end: formatDateForInput(endDate)
   };
 };
 
@@ -75,7 +87,7 @@ export const getDefaultDateRange = () => {
 };
 
 // Time range types
-export type TimeRange = 'hourly' | 'daily' | 'weekly';
+export type TimeRange = 'fiveMinute' | 'hourly' | 'daily' | 'weekly';
 
 // Get date range based on time range selector
 export const getTimeRangeDate = (timeRange: TimeRange) => {
@@ -83,15 +95,31 @@ export const getTimeRangeDate = (timeRange: TimeRange) => {
   const dummyEndDate = new Date(dummyRange.end);
 
   switch (timeRange) {
+    case 'fiveMinute':
+      // Current hour only (Hourly view) - from :00 to :59
+      // Use the latest available time from dummy data
+      const currentHour = new Date(dummyEndDate);
+      const hourStart = new Date(currentHour);
+      hourStart.setMinutes(0, 0, 0);
+      const hourEnd = new Date(hourStart);
+      hourEnd.setMinutes(59, 59, 999);
+
+      return {
+        startDate: formatDateForInput(hourStart),
+        endDate: formatDateForInput(hourEnd),
+        startTime: formatTimeForInput(hourStart),
+        endTime: formatTimeForInput(hourEnd)
+      };
+
     case 'hourly':
-      // Last 24 hours from end of dummy data
+      // Last 24 hours with hourly intervals (Day view)
       const hourlyStart = new Date(dummyEndDate);
       hourlyStart.setDate(hourlyStart.getDate() - 1);
       return {
         startDate: formatDateForInput(hourlyStart),
         endDate: dummyRange.end,
-        startTime: getCurrentTimeString(),
-        endTime: getCurrentTimeString()
+        startTime: getStartOfDayString(),
+        endTime: getEndOfDayString()
       };
 
     case 'daily':
@@ -106,9 +134,9 @@ export const getTimeRangeDate = (timeRange: TimeRange) => {
       };
 
     case 'weekly':
-      // Last 4 weeks (28 days) from end of dummy data
+      // Last 30 days (monthly view) from end of dummy data
       const weeklyStart = new Date(dummyEndDate);
-      weeklyStart.setDate(weeklyStart.getDate() - 28);
+      weeklyStart.setDate(weeklyStart.getDate() - 30);
       return {
         startDate: formatDateForInput(weeklyStart),
         endDate: dummyRange.end,

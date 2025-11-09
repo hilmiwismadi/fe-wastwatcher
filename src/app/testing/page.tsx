@@ -292,31 +292,6 @@ export default function TestingPage() {
           />
         </div>
 
-        {/* Test Controls */}
-        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-blue-800 mb-4">Test Controls</h3>
-          <div className="flex gap-4 flex-wrap">
-            <button
-              onClick={startSimulation}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-            >
-              Start Simulation
-            </button>
-            <button
-              onClick={stopSimulation}
-              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-            >
-              Stop Simulation
-            </button>
-            <button
-              onClick={sendTestData}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-            >
-              Send Test Data
-            </button>
-          </div>
-        </div>
-
         {/* DATA HISTORY */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Organic History */}

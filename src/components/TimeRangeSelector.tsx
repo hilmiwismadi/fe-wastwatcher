@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-export type TimeRange = 'hourly' | 'daily' | 'weekly';
+export type TimeRange = 'fiveMinute' | 'hourly' | 'daily' | 'weekly';
 
 interface TimeRangeSelectorProps {
   selectedRange: TimeRange;
@@ -16,7 +16,8 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
   className = ""
 }) => {
   const timeRanges: { value: TimeRange; label: string; description: string }[] = [
-    { value: 'hourly', label: 'Day', description: 'Hourly data (00:00-23:00)' },
+    { value: 'fiveMinute', label: 'Hourly', description: '1 hour, 5-min intervals (XX:00-XX:55)' },
+    { value: 'hourly', label: 'Day', description: '24 hours, hourly data (00:00-23:00)' },
     { value: 'daily', label: 'Week', description: '7 days of data' },
     { value: 'weekly', label: 'Month', description: '30 days of data' }
   ];

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { AlertCircle, ArrowLeft } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { AlertCircle, ArrowLeft, Download, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   PieChart,
@@ -17,8 +17,9 @@ import { ChartComponent } from './ChartComponent';
 import { BarChart } from './BarChart';
 import { TouchCarousel } from './TouchCarousel';
 import { useApiTrashData } from '../hooks/useApiTrashData';
-import { getBinData, binSlugToIdMapping } from '../data/mockData';
+import { binSlugToIdMapping } from '../data/mockData';
 import { getDefaultDateRange, combineDateAndTime, getTimeRangeDate } from '../utils/dateUtils';
+import { apiService, Device } from '../services/api';
 
 interface TrashBinDashboardProps {
   binSlug?: string; // URL slug for the bin (e.g., "kantinlt1")
@@ -27,12 +28,75 @@ interface TrashBinDashboardProps {
 const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantinlt1' }) => {
   const router = useRouter();
 
-  // Get bin data from slug
-  const binData = getBinData(binSlug);
-  const { name: trashBinName, battery: batteryPercentage, condition } = binData;
-
   // Get trashbinid from slug for API calls
   const trashbinid = binSlugToIdMapping[binSlug.toLowerCase()];
+
+  // State for bin data (fetched dynamically)
+  const [trashBinName, setTrashBinName] = React.useState<string>('Loading...');
+  const [batteryPercentage, setBatteryPercentage] = React.useState<number>(0);
+  const [condition, setCondition] = React.useState<string>('Loading...');
+
+  // Fetch bin and device data on mount
+  React.useEffect(() => {
+    const fetchBinData = async () => {
+      if (!trashbinid) {
+        setTrashBinName('Unknown Bin');
+        setCondition('Unknown');
+        return;
+      }
+
+      try {
+        // Fetch bin details and devices in parallel
+        const [binResponse, devicesResponse] = await Promise.all([
+          apiService.getTrashBinById(trashbinid),
+          apiService.getDevicesByTrashBinId(trashbinid)
+        ]);
+
+        if (binResponse.success && binResponse.data) {
+          setTrashBinName(binResponse.data.name);
+        }
+
+        if (devicesResponse.success && devicesResponse.data && devicesResponse.data.length > 0) {
+          // Calculate average battery from all devices
+          const devices = devicesResponse.data;
+          const batteriesWithValues = devices
+            .map(d => d.battery_percentage)
+            .filter((b): b is number => b !== undefined && b !== null);
+
+          if (batteriesWithValues.length > 0) {
+            const avgBattery = batteriesWithValues.reduce((sum, b) => sum + b, 0) / batteriesWithValues.length;
+            setBatteryPercentage(Math.round(avgBattery));
+          }
+
+          // Determine condition based on fill status (use highest fill percentage device)
+          const maxFillDevice = devices.reduce((max, device) => {
+            const currentFill = device.average_volume_percentage || 0;
+            const maxFill = max.average_volume_percentage || 0;
+            return currentFill > maxFill ? device : max;
+          }, devices[0]);
+
+          if (maxFillDevice.fill_status) {
+            const statusMap: Record<string, string> = {
+              'full': 'Penuh',
+              'high': 'Hampir Penuh',
+              'medium': 'Menengah',
+              'low': 'Rendah',
+              'empty': 'Kosong'
+            };
+            setCondition(statusMap[maxFillDevice.fill_status] || 'Normal');
+          } else {
+            setCondition('Normal');
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching bin data:', error);
+        setTrashBinName('Error loading bin');
+        setCondition('Unknown');
+      }
+    };
+
+    fetchBinData();
+  }, [trashbinid]);
 
   // Initialize with default date range
   const defaultRange = getDefaultDateRange();
@@ -40,6 +104,14 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
   // State management
   const [currentBinIndex, setCurrentBinIndex] = useState(0);
   const [timeRange, setTimeRange] = useState<TimeRange>('daily');
+
+  // Independent hour offsets for each chart
+  const [hourlyOffsets, setHourlyOffsets] = useState({
+    total: 0,
+    residue: 0,
+    organic: 0,
+    anorganic: 0
+  });
 
   // UI State (what user sees in the form)
   const [startDate, setStartDate] = useState(defaultRange.startDate);
@@ -53,11 +125,51 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
   const [appliedEndDate, setAppliedEndDate] = useState(defaultRange.endDate);
   const [appliedEndTime, setAppliedEndTime] = useState(defaultRange.endTime);
 
-  // Create API date range parameters from applied state
-  const apiStartDate = combineDateAndTime(appliedStartDate, appliedStartTime);
-  const apiEndDate = combineDateAndTime(appliedEndDate, appliedEndTime);
+  // Helper function to calculate time range for a specific chart
+  const getChartTimeRange = (chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
+    if (timeRange !== 'fiveMinute') {
+      // For non-hourly views, all charts use the same range
+      return {
+        startDate: combineDateAndTime(appliedStartDate, appliedStartTime),
+        endDate: combineDateAndTime(appliedEndDate, appliedEndTime)
+      };
+    }
 
-  // Custom hook for trash data from API
+    // For hourly view, calculate based on chart-specific offset
+    const offset = hourlyOffsets[chartType];
+    const baseRange = getTimeRangeDate('fiveMinute');
+
+    const newDateTime = new Date(baseRange.startDate);
+    newDateTime.setHours(newDateTime.getHours() + offset, 0, 0, 0);
+
+    const newEndDateTime = new Date(newDateTime);
+    newEndDateTime.setMinutes(59, 59, 999);
+
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const formatTime = (date: Date) => {
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    };
+
+    return {
+      startDate: `${formatDate(newDateTime)} ${formatTime(newDateTime)}:00`,
+      endDate: `${formatDate(newEndDateTime)} ${formatTime(newEndDateTime)}:59`
+    };
+  };
+
+  // Create API date range parameters from applied state (for Total chart)
+  const totalRange = getChartTimeRange('total');
+  const apiStartDate = totalRange.startDate;
+  const apiEndDate = totalRange.endDate;
+
+  // Custom hook for Total chart data (main data source)
   const {
     loading,
     error,
@@ -76,16 +188,24 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
     currentTotals,
     currentSpecific,
     getTotalChartData,
-    getResidueChartData,
-    getOrganicChartData,
-    getAnorganicChartData,
     getVolumeBarData,
     getDonutData,
     isAnyBinFull,
   } = useApiTrashData(apiStartDate, apiEndDate, timeRange, trashbinid);
 
+  // Separate hooks for category charts (for independent navigation in Hourly view)
+  const residueRange = getChartTimeRange('residue');
+  const organicRange = getChartTimeRange('organic');
+  const anorganicRange = getChartTimeRange('anorganic');
+
+  const residueData = useApiTrashData(residueRange.startDate, residueRange.endDate, timeRange, trashbinid);
+  const organicData = useApiTrashData(organicRange.startDate, organicRange.endDate, timeRange, trashbinid);
+  const anorganicData = useApiTrashData(anorganicRange.startDate, anorganicRange.endDate, timeRange, trashbinid);
+
   const handleTimeRangeChange = (newTimeRange: TimeRange) => {
     setTimeRange(newTimeRange);
+    // Reset all hour offsets when changing time range
+    setHourlyOffsets({ total: 0, residue: 0, organic: 0, anorganic: 0 });
     const newRange = getTimeRangeDate(newTimeRange);
 
     // Update UI state with new range
@@ -103,6 +223,33 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
     console.log("Time range changed to:", newTimeRange, newRange);
   };
 
+  // Navigate hours for a specific chart
+  const handlePreviousHour = (chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
+    if (timeRange !== 'fiveMinute') return;
+
+    setHourlyOffsets(prev => ({
+      ...prev,
+      [chartType]: prev[chartType] - 1
+    }));
+  };
+
+  const handleNextHour = (chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
+    if (timeRange !== 'fiveMinute') return;
+
+    setHourlyOffsets(prev => ({
+      ...prev,
+      [chartType]: prev[chartType] + 1
+    }));
+  };
+
+  // Get formatted time display for a chart
+  const getChartTimeDisplay = (chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
+    const range = getChartTimeRange(chartType);
+    const startTime = range.startDate.split(' ')[1]?.substring(0, 5) || '00:00';
+    const endTime = range.endDate.split(' ')[1]?.substring(0, 5) || '00:59';
+    return { startTime, endTime };
+  };
+
   const handleApplyDateRange = () => {
     // Apply the UI state to the applied state, which will trigger API re-fetch
     setAppliedStartDate(startDate);
@@ -118,20 +265,419 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
     });
   };
 
+  // Export dropdown state
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState<string>('');
+  const exportDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target as Node)) {
+        setShowExportDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleExport = () => {
-    console.log("Export triggered");
+    setShowExportDropdown(!showExportDropdown);
+  };
+
+  const generateCSV = (data: any[], devices: Device[], period: 'weekly' | 'monthly' | 'yearly') => {
+    // CSV headers
+    const headers = ['Date', 'Time', 'Category', 'Device ID', 'Weight (kg)', 'Volume (%)', 'Fill Level', 'Collection Events'];
+
+    // Helper function to determine fill level
+    const getFillLevel = (volume: number): string => {
+      if (volume >= 90) return 'Overflowing';
+      if (volume >= 75) return 'Full';
+      if (volume >= 50) return 'High';
+      if (volume >= 25) return 'Medium';
+      if (volume >= 10) return 'Low';
+      return 'Empty';
+    };
+
+    // Helper function to detect collection events (significant volume drop)
+    const detectCollection = (currentVolume: number, prevVolume: number): string => {
+      if (prevVolume - currentVolume > 30) {
+        return 'Yes';
+      }
+      return 'No';
+    };
+
+    // Create a map of deviceId to category
+    const deviceCategoryMap = new Map<string, string>();
+    devices.forEach(device => {
+      deviceCategoryMap.set(device.deviceid, device.category);
+    });
+
+    // CSV rows
+    const rows: string[][] = [];
+    let prevVolumeByDevice = new Map<string, number>();
+
+    data.forEach((item, index) => {
+      // Get timestamp from various possible fields
+      const timestamp = item.time_interval || item.analysis_date || item.timestamp || '';
+
+      // Parse timestamp to separate date and time
+      let date = '';
+      let time = '';
+
+      if (timestamp) {
+        // Handle ISO format (2025-11-01T14:30:00) or SQL format (2025-11-01 14:30:00)
+        const dateObj = new Date(timestamp);
+
+        if (!isNaN(dateObj.getTime())) {
+          // Valid date object - keep in UTC to match database timezone
+          const isoString = dateObj.toISOString(); // e.g., "2025-10-05T17:00:00.000Z"
+          date = isoString.split('T')[0]; // YYYY-MM-DD
+          time = isoString.split('T')[1].split('.')[0]; // HH:MM:SS (remove milliseconds and Z)
+        } else {
+          // If parsing fails, try to split manually
+          if (timestamp.includes('T')) {
+            [date, time] = timestamp.split('T');
+            time = time.split('.')[0]; // Remove milliseconds if present
+          } else if (timestamp.includes(' ')) {
+            [date, time] = timestamp.split(' ');
+          } else {
+            date = timestamp;
+            time = '00:00:00';
+          }
+        }
+      }
+
+      const deviceId = item.deviceid || '-';
+      const category = item.category || deviceCategoryMap.get(deviceId) || 'All';
+      const weight = parseFloat(item.avg_weight || item.weight_kg || '0').toFixed(2);
+      const volume = parseFloat(item.avg_volume || item.fill_percentage || '0');
+      const fillLevel = getFillLevel(volume);
+
+      // Check for collection event
+      const prevVolume = prevVolumeByDevice.get(deviceId) || volume;
+      const collectionEvent = detectCollection(volume, prevVolume);
+      prevVolumeByDevice.set(deviceId, volume);
+
+      rows.push([
+        date,
+        time,
+        category,
+        deviceId,
+        weight,
+        volume.toFixed(2),
+        fillLevel,
+        collectionEvent
+      ]);
+    });
+
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    return csvContent;
+  };
+
+  const downloadCSV = (csvContent: string, filename: string) => {
+    // Add UTF-8 BOM for better Excel compatibility
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportPeriod = async (period: 'weekly' | 'monthly' | 'yearly', category: string = 'all') => {
+    setShowExportDropdown(false);
+    setIsExporting(true);
+    setExportStatus('Downloading the CSV...');
+
+    try {
+      // Determine days based on period
+      const days = period === 'weekly' ? 7 : period === 'monthly' ? 30 : 365;
+
+      // Calculate date range
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - days);
+
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+
+      setExportStatus('Fetching device information...');
+      // Fetch devices for this bin to get category information
+      let devices: Device[] = [];
+      let targetDeviceId: string | undefined;
+
+      if (trashbinid) {
+        const devicesResponse = await apiService.getDevicesByTrashBinId(trashbinid);
+        if (devicesResponse.success && devicesResponse.data) {
+          devices = devicesResponse.data;
+
+          // Get device ID for specific category if not 'all'
+          if (category !== 'all') {
+            const targetDevice = devices.find(d =>
+              d.category === category ||
+              (category === 'Anorganic' && (d.category === 'Inorganic' || d.category === 'Anorganic'))
+            );
+            targetDeviceId = targetDevice?.deviceid;
+
+            if (!targetDeviceId) {
+              setExportStatus(`No ${category} device found`);
+              setTimeout(() => {
+                setIsExporting(false);
+                setExportStatus('');
+              }, 3000);
+              return;
+            }
+          }
+        }
+      }
+
+      // Prepare category parameter for API
+      const categoryParam = category === 'all' ? undefined : category;
+
+      setExportStatus('Fetching analytics data...');
+      // For yearly exports, use daily data to avoid timeout
+      // For weekly/monthly, use hourly data for more detail
+      let response;
+
+      if (category === 'all') {
+        // Get all categories data
+        if (period === 'yearly') {
+          response = trashbinid
+            ? await apiService.getDailyAnalyticsForBin(trashbinid, days, startDateStr, endDateStr)
+            : await apiService.getDailyAnalytics(days, undefined, startDateStr, endDateStr);
+        } else {
+          response = trashbinid
+            ? await apiService.getHourlyIntervalDataForBin(trashbinid, startDateStr, endDateStr)
+            : await apiService.getHourlyIntervalData(undefined, undefined, startDateStr, endDateStr);
+        }
+      } else {
+        // Get specific category data using deviceId
+        if (period === 'yearly') {
+          response = await apiService.getDailyAnalytics(days, categoryParam, startDateStr, endDateStr, targetDeviceId);
+        } else {
+          response = await apiService.getHourlyIntervalData(targetDeviceId, categoryParam, startDateStr, endDateStr);
+        }
+      }
+
+      if (response.success && response.data) {
+        setExportStatus('Generating CSV file...');
+
+        const csvContent = generateCSV(response.data, devices, period);
+        const categoryLabel = category === 'all' ? 'All' : category;
+        const filename = `${trashBinName.replace(/\s+/g, '_')}_${categoryLabel}_${period}_export_${new Date().toISOString().split('T')[0]}.csv`;
+        downloadCSV(csvContent, filename);
+
+        setExportStatus('Download complete!');
+        console.log(`Exported ${period} ${categoryLabel} data for ${trashBinName} (${response.data.length} records)`);
+
+        // Clear status after 2 seconds
+        setTimeout(() => {
+          setIsExporting(false);
+          setExportStatus('');
+        }, 2000);
+      } else {
+        setExportStatus('Failed to fetch data');
+        setTimeout(() => {
+          setIsExporting(false);
+          setExportStatus('');
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      setExportStatus('Export failed. Please try again.');
+      setTimeout(() => {
+        setIsExporting(false);
+        setExportStatus('');
+      }, 3000);
+    }
   };
 
   // Bin components data
+  // Helper function to get category chart data with correct toggle
+  const getResidueChartDataWithToggle = () => {
+    if (!residueData.residueAnalytics?.length) return [];
+    return residueData.residueAnalytics.map((item: any) => {
+      const timestamp = item.time_interval || item.analysis_date;
+      const date = new Date(timestamp);
+
+      // Format timestamp for tooltip
+      let fullTimestamp;
+      if (timeRange === 'fiveMinute' && item.wib_time_display) {
+        fullTimestamp = item.wib_time_display;
+      } else if (timeRange === 'fiveMinute') {
+        fullTimestamp = `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+      } else if (timeRange === 'hourly') {
+        const wibDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+        fullTimestamp = `${String(wibDate.getUTCHours()).padStart(2, '0')}:${String(wibDate.getUTCMinutes()).padStart(2, '0')}`;
+      } else {
+        fullTimestamp = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+
+      const formatTimestamp = (item: any): string => {
+        const timestamp = item.time_interval || item.analysis_date;
+        if (!timestamp) return '';
+        const date = new Date(timestamp);
+
+        if (timeRange === 'fiveMinute') {
+          if (item.wib_time_display) {
+            return item.wib_time_display;
+          }
+          const minutes = date.getUTCMinutes();
+          const hours = date.getUTCHours();
+          return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        } else if (timeRange === 'hourly') {
+          const wibDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+          return wibDate.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'UTC'
+          });
+        } else if (timeRange === 'daily') {
+          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        } else {
+          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+      };
+
+      return {
+        time: formatTimestamp(item),
+        fullTimestamp,
+        value: residueToggle === "weight" ? item.avg_weight : item.avg_volume
+      };
+    });
+  };
+
+  const getOrganicChartDataWithToggle = () => {
+    if (!organicData.organicAnalytics?.length) return [];
+    return organicData.organicAnalytics.map((item: any) => {
+      const timestamp = item.time_interval || item.analysis_date;
+      const date = new Date(timestamp);
+
+      let fullTimestamp;
+      if (timeRange === 'fiveMinute' && item.wib_time_display) {
+        fullTimestamp = item.wib_time_display;
+      } else if (timeRange === 'fiveMinute') {
+        fullTimestamp = `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+      } else if (timeRange === 'hourly') {
+        const wibDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+        fullTimestamp = `${String(wibDate.getUTCHours()).padStart(2, '0')}:${String(wibDate.getUTCMinutes()).padStart(2, '0')}`;
+      } else {
+        fullTimestamp = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+
+      const formatTimestamp = (item: any): string => {
+        const timestamp = item.time_interval || item.analysis_date;
+        if (!timestamp) return '';
+        const date = new Date(timestamp);
+
+        if (timeRange === 'fiveMinute') {
+          if (item.wib_time_display) {
+            return item.wib_time_display;
+          }
+          const minutes = date.getUTCMinutes();
+          const hours = date.getUTCHours();
+          return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        } else if (timeRange === 'hourly') {
+          const wibDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+          return wibDate.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'UTC'
+          });
+        } else if (timeRange === 'daily') {
+          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        } else {
+          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+      };
+
+      return {
+        time: formatTimestamp(item),
+        fullTimestamp,
+        value: organicToggle === "weight" ? item.avg_weight : item.avg_volume
+      };
+    });
+  };
+
+  const getAnorganicChartDataWithToggle = () => {
+    if (!anorganicData.anorganicAnalytics?.length) return [];
+    return anorganicData.anorganicAnalytics.map((item: any) => {
+      const timestamp = item.time_interval || item.analysis_date;
+      const date = new Date(timestamp);
+
+      let fullTimestamp;
+      if (timeRange === 'fiveMinute' && item.wib_time_display) {
+        fullTimestamp = item.wib_time_display;
+      } else if (timeRange === 'fiveMinute') {
+        fullTimestamp = `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+      } else if (timeRange === 'hourly') {
+        const wibDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+        fullTimestamp = `${String(wibDate.getUTCHours()).padStart(2, '0')}:${String(wibDate.getUTCMinutes()).padStart(2, '0')}`;
+      } else {
+        fullTimestamp = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+
+      const formatTimestamp = (item: any): string => {
+        const timestamp = item.time_interval || item.analysis_date;
+        if (!timestamp) return '';
+        const date = new Date(timestamp);
+
+        if (timeRange === 'fiveMinute') {
+          if (item.wib_time_display) {
+            return item.wib_time_display;
+          }
+          const minutes = date.getUTCMinutes();
+          const hours = date.getUTCHours();
+          return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        } else if (timeRange === 'hourly') {
+          const wibDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+          return wibDate.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'UTC'
+          });
+        } else if (timeRange === 'daily') {
+          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        } else {
+          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+      };
+
+      return {
+        time: formatTimestamp(item),
+        fullTimestamp,
+        value: anorganicToggle === "weight" ? item.avg_weight : item.avg_volume
+      };
+    });
+  };
+
   const binComponentsData = [
     {
       id: 'residue',
+      chartType: 'residue' as const,
       title: 'Residue',
       colorTheme: 'red',
       bgColor: 'bg-gradient-to-br from-red-500 to-red-600',
       toggle: residueToggle,
       setToggle: setResidueToggle,
-      chartData: getResidueChartData(),
+      chartData: getResidueChartDataWithToggle(),
       currentData: currentSpecific.residue,
       titleColor: 'text-red-600',
       cardBg: 'bg-red-50',
@@ -141,12 +687,13 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
     },
     {
       id: 'organic',
+      chartType: 'organic' as const,
       title: 'Organic',
       colorTheme: 'green',
       bgColor: 'bg-gradient-to-br from-green-500 to-green-600',
       toggle: organicToggle,
       setToggle: setOrganicToggle,
-      chartData: getOrganicChartData(),
+      chartData: getOrganicChartDataWithToggle(),
       currentData: currentSpecific.organic,
       titleColor: 'text-green-600',
       cardBg: 'bg-green-50',
@@ -156,12 +703,13 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
     },
     {
       id: 'anorganic',
+      chartType: 'anorganic' as const,
       title: 'Anorganic',
       colorTheme: 'yellow',
       bgColor: 'bg-gradient-to-br from-yellow-500 to-yellow-600',
       toggle: anorganicToggle,
       setToggle: setAnorganicToggle,
-      chartData: getAnorganicChartData(),
+      chartData: getAnorganicChartDataWithToggle(),
       currentData: currentSpecific.anorganic,
       titleColor: 'text-yellow-600',
       cardBg: 'bg-yellow-50',
@@ -173,7 +721,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
 
   // Render bin component
   const renderBinComponent = (binData: typeof binComponentsData[0]) => (
-    <div 
+    <div
       key={binData.id}
       className={`bg-white p-3 rounded-lg shadow-sm border relative ${
         binData.isAlert ? "border-red-500 ring-2 ring-red-200" : ""
@@ -186,7 +734,14 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
         </div>
       )}
       <div className="flex justify-between items-center mb-2">
-        <h3 className={`text-sm font-bold ${binData.titleColor}`}>{binData.title}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className={`text-sm font-bold ${binData.titleColor}`}>{binData.title}</h3>
+          {timeRange === 'fiveMinute' && (
+            <span className="text-xs text-gray-600 font-semibold bg-gray-50 px-2 py-0.5 rounded">
+              {getChartTimeDisplay(binData.chartType).startTime} - {getChartTimeDisplay(binData.chartType).endTime}
+            </span>
+          )}
+        </div>
         <ToggleButton
           value={binData.toggle}
           onChange={binData.setToggle}
@@ -195,11 +750,36 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
         />
       </div>
       <div className="space-y-2">
-        <ChartComponent
-          data={binData.chartData}
-          bgColor={binData.bgColor}
-          height={120}
-        />
+        <div>
+          <ChartComponent
+            data={binData.chartData}
+            bgColor={binData.bgColor}
+            height={120}
+          />
+
+          {timeRange === 'fiveMinute' && (
+            <div className="flex justify-center items-center gap-3 mt-2">
+              {/* Left Arrow */}
+              <button
+                onClick={() => handlePreviousHour(binData.chartType)}
+                className="bg-white hover:bg-gray-50 shadow-sm rounded-full p-1.5 transition-all hover:scale-110 border border-gray-200"
+                aria-label="Previous hour"
+              >
+                <ChevronLeft className="w-4 h-4 text-gray-600" />
+              </button>
+
+              {/* Right Arrow */}
+              <button
+                onClick={() => handleNextHour(binData.chartType)}
+                className="bg-white hover:bg-gray-50 shadow-sm rounded-full p-1.5 transition-all hover:scale-110 border border-gray-200"
+                aria-label="Next hour"
+              >
+                <ChevronRight className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 gap-1">
           <div className={`text-center ${binData.cardBg} p-2 rounded border ${binData.borderColor}`}>
             <p className="text-xs font-medium text-gray-800 mb-1">Weight</p>
@@ -251,6 +831,14 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 p-2 sm:p-4 overflow-auto">
+      {/* Export Loading Alert */}
+      {isExporting && (
+        <div className="fixed top-4 right-4 z-50 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-slideIn">
+          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+          <span className="font-medium">{exportStatus}</span>
+        </div>
+      )}
+
       <div className="max-w-full mx-auto flex flex-col gap-2 sm:gap-4">
         {/* Clean Header */}
         <div className="bg-white p-2 sm:p-3 rounded-lg shadow-sm border">
@@ -265,17 +853,144 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
                 <ArrowLeft className="w-4 h-4" />
                 <span className="text-xs sm:text-sm font-medium">Back</span>
               </button>
-              <div className="group relative">
+              <div className="group relative inline-block">
                 <h1 className="text-lg sm:text-xl font-bold text-gray-800 cursor-pointer">
                   {trashBinName}
                 </h1>
-                {/* Export button on hover */}
-                <button
-                  onClick={handleExport}
-                  className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 bg-blue-500 text-white px-2 py-1 rounded text-xs transition-all transform translate-x-full group-hover:translate-x-0"
-                >
-                  Export
-                </button>
+                {/* Export button on hover - slides down */}
+                <div ref={exportDropdownRef} className="absolute top-full left-0 mt-1 pointer-events-none group-hover:pointer-events-auto">
+                  <button
+                    onClick={handleExport}
+                    className="opacity-0 group-hover:opacity-100 bg-blue-500 text-white px-3 py-1 rounded text-xs transition-all duration-200 whitespace-nowrap transform -translate-y-2 group-hover:translate-y-0 shadow-md hover:bg-blue-600 flex items-center gap-1 pointer-events-auto"
+                  >
+                    <Download className="w-3 h-3" />
+                    Export
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+
+                  {/* Export dropdown menu */}
+                  {showExportDropdown && (
+                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-50 min-w-[280px] pointer-events-auto">
+                      {/* All Data Section */}
+                      <div className="px-3 py-1">
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">All Categories</p>
+                        <div className="space-y-1">
+                          <button
+                            onClick={() => handleExportPeriod('weekly', 'all')}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2 rounded"
+                          >
+                            <Download className="w-3 h-3" />
+                            Weekly CSV
+                          </button>
+                          <button
+                            onClick={() => handleExportPeriod('monthly', 'all')}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2 rounded"
+                          >
+                            <Download className="w-3 h-3" />
+                            Monthly CSV
+                          </button>
+                          <button
+                            onClick={() => handleExportPeriod('yearly', 'all')}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2 rounded"
+                          >
+                            <Download className="w-3 h-3" />
+                            Yearly CSV
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-gray-200 my-2"></div>
+
+                      {/* Organic Section */}
+                      <div className="px-3 py-1">
+                        <p className="text-xs font-semibold text-green-600 uppercase mb-1">Organic</p>
+                        <div className="space-y-1">
+                          <button
+                            onClick={() => handleExportPeriod('weekly', 'Organic')}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors flex items-center gap-2 rounded"
+                          >
+                            <Download className="w-3 h-3" />
+                            Weekly CSV
+                          </button>
+                          <button
+                            onClick={() => handleExportPeriod('monthly', 'Organic')}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors flex items-center gap-2 rounded"
+                          >
+                            <Download className="w-3 h-3" />
+                            Monthly CSV
+                          </button>
+                          <button
+                            onClick={() => handleExportPeriod('yearly', 'Organic')}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors flex items-center gap-2 rounded"
+                          >
+                            <Download className="w-3 h-3" />
+                            Yearly CSV
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-gray-200 my-2"></div>
+
+                      {/* Anorganic Section */}
+                      <div className="px-3 py-1">
+                        <p className="text-xs font-semibold text-blue-600 uppercase mb-1">Anorganic</p>
+                        <div className="space-y-1">
+                          <button
+                            onClick={() => handleExportPeriod('weekly', 'Anorganic')}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2 rounded"
+                          >
+                            <Download className="w-3 h-3" />
+                            Weekly CSV
+                          </button>
+                          <button
+                            onClick={() => handleExportPeriod('monthly', 'Anorganic')}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2 rounded"
+                          >
+                            <Download className="w-3 h-3" />
+                            Monthly CSV
+                          </button>
+                          <button
+                            onClick={() => handleExportPeriod('yearly', 'Anorganic')}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2 rounded"
+                          >
+                            <Download className="w-3 h-3" />
+                            Yearly CSV
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-gray-200 my-2"></div>
+
+                      {/* Residue Section */}
+                      <div className="px-3 py-1">
+                        <p className="text-xs font-semibold text-red-600 uppercase mb-1">Residue</p>
+                        <div className="space-y-1">
+                          <button
+                            onClick={() => handleExportPeriod('weekly', 'Residue')}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center gap-2 rounded"
+                          >
+                            <Download className="w-3 h-3" />
+                            Weekly CSV
+                          </button>
+                          <button
+                            onClick={() => handleExportPeriod('monthly', 'Residue')}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center gap-2 rounded"
+                          >
+                            <Download className="w-3 h-3" />
+                            Monthly CSV
+                          </button>
+                          <button
+                            onClick={() => handleExportPeriod('yearly', 'Residue')}
+                            className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center gap-2 rounded"
+                          >
+                            <Download className="w-3 h-3" />
+                            Yearly CSV
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-1 bg-green-100 px-2 py-1 rounded-full">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -417,7 +1132,14 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
           {/* Total Monitoring */}
           <div className="lg:col-span-3 bg-white p-2 sm:p-3 rounded-lg shadow-sm border">
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-sm font-bold text-gray-800">Total Monitoring</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-gray-800">Total Monitoring</h3>
+                {timeRange === 'fiveMinute' && (
+                  <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded">
+                    {getChartTimeDisplay('total').startTime} - {getChartTimeDisplay('total').endTime}
+                  </span>
+                )}
+              </div>
               <ToggleButton
                 value={totalToggle}
                 onChange={setTotalToggle}
@@ -426,11 +1148,36 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
               />
             </div>
 
-            <ChartComponent
-              data={getTotalChartData()}
-              bgColor="bg-gradient-to-br from-blue-500 to-blue-600"
-              height={180}
-            />
+            {/* Chart with navigation arrows for Hourly view */}
+            <div className="relative">
+              <ChartComponent
+                data={getTotalChartData()}
+                bgColor="bg-gradient-to-br from-blue-500 to-blue-600"
+                height={180}
+              />
+
+              {timeRange === 'fiveMinute' && (
+                <div className="flex justify-center items-center gap-4 mt-2">
+                  {/* Left Arrow */}
+                  <button
+                    onClick={() => handlePreviousHour('total')}
+                    className="bg-white hover:bg-blue-50 shadow-md rounded-full p-2 transition-all hover:scale-110 border border-blue-200"
+                    aria-label="Previous hour"
+                  >
+                    <ChevronLeft className="w-5 h-5 text-blue-600" />
+                  </button>
+
+                  {/* Right Arrow */}
+                  <button
+                    onClick={() => handleNextHour('total')}
+                    className="bg-white hover:bg-blue-50 shadow-md rounded-full p-2 transition-all hover:scale-110 border border-blue-200"
+                    aria-label="Next hour"
+                  >
+                    <ChevronRight className="w-5 h-5 text-blue-600" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -487,9 +1234,9 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
         {(currentSpecific.residue.volume > 80 ||
           currentSpecific.organic.volume > 80 ||
           currentSpecific.anorganic.volume > 80) && (
-          <div className="fixed bottom-3 right-3 bg-gradient-to-r from-red-500 to-red-600 text-white p-2 sm:p-3 rounded-lg shadow-xl flex items-center gap-2 animate-pulse border border-red-400 z-10">
-            <AlertCircle className="w-4 h-4" />
-            <span className="font-bold text-xs sm:text-sm">Alert: Bin is full!</span>
+          <div className="fixed top-3 right-3 bg-gradient-to-r from-red-500 to-red-600 text-white p-4 sm:p-5 rounded-xl shadow-2xl flex items-center gap-3 animate-pulse border-2 border-red-400 z-50">
+            <AlertCircle className="w-6 h-6 sm:w-7 sm:h-7" />
+            <span className="font-bold text-base sm:text-lg">Alert: Bin is full!</span>
           </div>
         )}
       </div>

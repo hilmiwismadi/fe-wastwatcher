@@ -8,6 +8,7 @@ export interface TrashData {
 export interface ChartData {
   time: string;
   value: number;
+  fullTimestamp?: string; // Full timestamp for tooltip display
 }
 
 export interface DonutChartData {
