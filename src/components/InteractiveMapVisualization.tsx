@@ -970,19 +970,6 @@ export default function InteractiveMapVisualization() {
           </div>
 
           <div className="w-full sm:w-auto">
-            <label className="block text-xs md:text-sm font-medium mb-1 text-gray-800">Mode:</label>
-            <select
-              value={mode}
-              onChange={(e) => setMode(e.target.value as 'drag' | 'block' | 'select')}
-              className="w-full sm:w-auto px-3 py-2 border-2 border-blue-300 rounded-lg text-xs md:text-sm font-medium bg-white hover:border-blue-500 text-gray-800"
-            >
-              <option value="drag">🖱️ Drag Bins</option>
-              <option value="block">🚫 Block Points</option>
-              <option value="select">📍 Select Points</option>
-            </select>
-          </div>
-
-          <div className="w-full sm:w-auto">
             <label className="block text-xs md:text-sm font-medium mb-1 text-gray-800">Strategy:</label>
             <select
               value={strategy}

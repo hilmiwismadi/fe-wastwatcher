@@ -1,5 +1,7 @@
 import TrashBinDashboard from '@/components/TrashBinDashboard';
 
+export const dynamic = 'force-dynamic';
+
 interface PageProps {
   params: Promise<{
     slug: string;

@@ -6,6 +6,8 @@ import { ArrowLeft } from 'lucide-react'
 import Bin3DVisualization from '@/components/Bin3DVisualization'
 import { binSlugToMqttTopic, binSlugMapping } from '@/data/mockData'
 
+export const dynamic = 'force-dynamic'
+
 // ====================================
 // INTERFACE UNTUK FORMAT DATA BARU
 // ====================================
@@ -156,48 +158,43 @@ export default function ConditionPage({ params }: PageProps) {
   }, [mqttTopic])
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* ====================================
             HEADER WITH BACK BUTTON
             ==================================== */}
-        <div className="mb-8">
-          <div className="flex items-center gap-4 mb-4">
+        <div className="mb-4 sm:mb-6 md:mb-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 mb-3 sm:mb-4">
             <button
               onClick={() => router.back()}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="text-sm font-medium">Back</span>
+              <span className="text-xs sm:text-sm font-medium">Back</span>
             </button>
-            <h1 className="text-3xl font-bold text-gray-900">
-              🗑️ {binName} - Real-time Condition
+            <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-gray-900 break-words">
+              🗑️ {binName}
             </h1>
           </div>
-          <div className="flex items-center gap-6 flex-wrap">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm">
             <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <span className="text-sm text-gray-600">
-                {isConnected ? 'Connected to WebSocket' : 'Disconnected from WebSocket'}
+              <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span className="text-gray-600">
+                {isConnected ? 'Connected' : 'Disconnected'}
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-purple-600">
-                📡 MQTT Topic: <code className="bg-purple-50 px-2 py-1 rounded">{mqttTopic}</code>
-              </span>
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="font-semibold text-purple-600">📡 Topic:</span>
+              <code className="bg-purple-50 px-1.5 py-0.5 rounded text-xs break-all">{mqttTopic}</code>
             </div>
             {location && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-blue-600">
-                  📍 Location: {location}
-                </span>
+              <div className="flex items-center gap-1">
+                <span className="font-semibold text-blue-600">📍 {location}</span>
               </div>
             )}
             {lastUpdate && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500">
-                  ⏱️ Last Update: {lastUpdate}
-                </span>
+              <div className="flex items-center gap-1 text-gray-500">
+                <span>⏱️ {lastUpdate}</span>
               </div>
             )}
           </div>
@@ -206,52 +203,52 @@ export default function ConditionPage({ params }: PageProps) {
         {/* ====================================
             WEIGHT DISPLAY CARDS
             ==================================== */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6">
           {/* Organic Weight */}
-          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
+          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-green-700 mb-1">🌱 Organic Weight</h3>
-                <p className="text-2xl font-bold text-green-900">
-                  {organicSensors?.weight ? `${(organicSensors.weight / 1000).toFixed(2)} kg` : '-- kg'}
+              <div className="flex-1">
+                <h3 className="text-xs sm:text-sm font-semibold text-green-700 mb-1">🌱 Organic</h3>
+                <p className="text-xl sm:text-2xl font-bold text-green-900">
+                  {organicSensors?.weight ? `${(organicSensors.weight / 1000).toFixed(2)} kg` : '--'}
                 </p>
-                <p className="text-xs text-green-600 mt-1">
-                  {organicSensors?.weight ? `${organicSensors.weight} grams` : 'No data'}
+                <p className="text-xs text-green-600 mt-0.5">
+                  {organicSensors?.weight ? `${organicSensors.weight}g` : 'No data'}
                 </p>
               </div>
-              <div className="text-4xl">⚖️</div>
+              <div className="text-2xl sm:text-3xl md:text-4xl">⚖️</div>
             </div>
           </div>
 
           {/* Anorganic Weight */}
-          <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
+          <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-blue-700 mb-1">♻️ Anorganic Weight</h3>
-                <p className="text-2xl font-bold text-blue-900">
-                  {anorganicSensors?.weight ? `${(anorganicSensors.weight / 1000).toFixed(2)} kg` : '-- kg'}
+              <div className="flex-1">
+                <h3 className="text-xs sm:text-sm font-semibold text-blue-700 mb-1">♻️ Anorganic</h3>
+                <p className="text-xl sm:text-2xl font-bold text-blue-900">
+                  {anorganicSensors?.weight ? `${(anorganicSensors.weight / 1000).toFixed(2)} kg` : '--'}
                 </p>
-                <p className="text-xs text-blue-600 mt-1">
-                  {anorganicSensors?.weight ? `${anorganicSensors.weight} grams` : 'No data'}
+                <p className="text-xs text-blue-600 mt-0.5">
+                  {anorganicSensors?.weight ? `${anorganicSensors.weight}g` : 'No data'}
                 </p>
               </div>
-              <div className="text-4xl">⚖️</div>
+              <div className="text-2xl sm:text-3xl md:text-4xl">⚖️</div>
             </div>
           </div>
 
           {/* Residue Weight */}
-          <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4">
+          <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-orange-700 mb-1">🗑️ Residue Weight</h3>
-                <p className="text-2xl font-bold text-orange-900">
-                  {residueSensors?.weight ? `${(residueSensors.weight / 1000).toFixed(2)} kg` : '-- kg'}
+              <div className="flex-1">
+                <h3 className="text-xs sm:text-sm font-semibold text-orange-700 mb-1">🗑️ Residue</h3>
+                <p className="text-xl sm:text-2xl font-bold text-orange-900">
+                  {residueSensors?.weight ? `${(residueSensors.weight / 1000).toFixed(2)} kg` : '--'}
                 </p>
-                <p className="text-xs text-orange-600 mt-1">
-                  {residueSensors?.weight ? `${residueSensors.weight} grams` : 'No data'}
+                <p className="text-xs text-orange-600 mt-0.5">
+                  {residueSensors?.weight ? `${residueSensors.weight}g` : 'No data'}
                 </p>
               </div>
-              <div className="text-4xl">⚖️</div>
+              <div className="text-2xl sm:text-3xl md:text-4xl">⚖️</div>
             </div>
           </div>
         </div>
@@ -259,7 +256,7 @@ export default function ConditionPage({ params }: PageProps) {
         {/* ====================================
             3 VISUALISASI 3D UNTUK 3 BIN
             ==================================== */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-6 md:mb-8">
           <Bin3DVisualization
             binType="organic"
             sensorData={organicSensors}
@@ -275,11 +272,11 @@ export default function ConditionPage({ params }: PageProps) {
         </div>
 
         {/* DATA HISTORY */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6 md:mb-8">
           {/* Organic History */}
-          <div className="bg-white rounded-lg shadow p-4">
-            <h3 className="text-sm font-semibold text-green-600 mb-2">🌱 Organic History</h3>
-            <div className="text-xs text-gray-500 space-y-1 max-h-40 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+            <h3 className="text-xs sm:text-sm font-semibold text-green-600 mb-2">🌱 Organic History</h3>
+            <div className="text-xs text-gray-500 space-y-1 max-h-32 sm:max-h-40 overflow-y-auto">
               {organicHistory.length === 0 ? (
                 <p className="text-orange-500">No data yet</p>
               ) : (
@@ -295,9 +292,9 @@ export default function ConditionPage({ params }: PageProps) {
           </div>
 
           {/* Anorganic History */}
-          <div className="bg-white rounded-lg shadow p-4">
-            <h3 className="text-sm font-semibold text-blue-600 mb-2">♻️ Anorganic History</h3>
-            <div className="text-xs text-gray-500 space-y-1 max-h-40 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+            <h3 className="text-xs sm:text-sm font-semibold text-blue-600 mb-2">♻️ Anorganic History</h3>
+            <div className="text-xs text-gray-500 space-y-1 max-h-32 sm:max-h-40 overflow-y-auto">
               {anorganicHistory.length === 0 ? (
                 <p className="text-orange-500">No data yet</p>
               ) : (
@@ -313,9 +310,9 @@ export default function ConditionPage({ params }: PageProps) {
           </div>
 
           {/* Residue History */}
-          <div className="bg-white rounded-lg shadow p-4">
-            <h3 className="text-sm font-semibold text-orange-600 mb-2">🗑️ Residue History</h3>
-            <div className="text-xs text-gray-500 space-y-1 max-h-40 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+            <h3 className="text-xs sm:text-sm font-semibold text-orange-600 mb-2">🗑️ Residue History</h3>
+            <div className="text-xs text-gray-500 space-y-1 max-h-32 sm:max-h-40 overflow-y-auto">
               {residueHistory.length === 0 ? (
                 <p className="text-orange-500">No data yet</p>
               ) : (
@@ -332,36 +329,34 @@ export default function ConditionPage({ params }: PageProps) {
         </div>
 
         {/* Instructions */}
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-3">📖 System Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-3 sm:p-4 md:p-6">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">📖 System Info</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <h4 className="font-semibold text-sm text-blue-800 mb-2">Current Phase (Development)</h4>
-              <ul className="text-sm text-gray-700 space-y-1">
-                <li>• Bin: <strong>{binName}</strong></li>
-                <li>• Topic: <code className="bg-white px-2 py-1 rounded text-xs">{mqttTopic}</code></li>
-                <li>• Data: <code className="bg-white px-2 py-1 rounded text-xs">{`{"DISTANCE":[60,59,75,73],"WEIGHT":2454}`}</code></li>
-                <li>• Currently showing: <strong>Organic only</strong> (4 sensors + weight)</li>
-                <li>• Sensor layout: [TopLeft, TopRight, BottomLeft, BottomRight]</li>
-                <li>• Weight: in grams (e.g., 2454g = 2.45kg)</li>
+              <h4 className="font-semibold text-xs sm:text-sm text-blue-800 mb-1 sm:mb-2">Current Phase</h4>
+              <ul className="text-xs sm:text-sm text-gray-700 space-y-0.5 sm:space-y-1">
+                <li className="break-words">• Bin: <strong className="break-all">{binName}</strong></li>
+                <li className="break-words">• Topic: <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">{mqttTopic}</code></li>
+                <li className="break-words">• Showing: <strong>Organic</strong> (4 sensors + weight)</li>
+                <li>• Weight in grams</li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-sm text-purple-800 mb-2">Future Phase (Production)</h4>
-              <ul className="text-sm text-gray-700 space-y-1">
-                <li>• Topic: <code className="bg-white px-2 py-1 rounded text-xs">{mqttTopic}/Organic</code></li>
-                <li>• Topic: <code className="bg-white px-2 py-1 rounded text-xs">{mqttTopic}/Anorganic</code></li>
-                <li>• Topic: <code className="bg-white px-2 py-1 rounded text-xs">{mqttTopic}/Residue</code></li>
-                <li>• Total: <strong>12 sensors</strong> (4 per bin × 3 bins)</li>
+              <h4 className="font-semibold text-xs sm:text-sm text-purple-800 mb-1 sm:mb-2">Future Phase</h4>
+              <ul className="text-xs sm:text-sm text-gray-700 space-y-0.5 sm:space-y-1">
+                <li className="break-words">• Topic: <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">{mqttTopic}/Organic</code></li>
+                <li className="break-words">• Topic: <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">{mqttTopic}/Anorganic</code></li>
+                <li className="break-words">• Topic: <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">{mqttTopic}/Residue</code></li>
+                <li>• Total: <strong>12 sensors</strong></li>
               </ul>
             </div>
           </div>
-          <div className="mt-4 pt-4 border-t border-blue-200">
-            <p className="text-sm text-gray-600">
-              <strong>MQTT Broker:</strong> <code className="bg-white px-2 py-1 rounded text-xs">mqtt://test.mosquitto.org:1883</code>
+          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-blue-200">
+            <p className="text-xs sm:text-sm text-gray-600 break-words">
+              <strong>MQTT:</strong> <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">test.mosquitto.org:1883</code>
             </p>
-            <p className="text-sm text-gray-600 mt-1">
-              <strong>WebSocket:</strong> <code className="bg-white px-2 py-1 rounded text-xs">ws://localhost:5000/ws</code>
+            <p className="text-xs sm:text-sm text-gray-600 mt-1 break-words">
+              <strong>WebSocket:</strong> <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">ws://localhost:5000/ws</code>
             </p>
           </div>
         </div>

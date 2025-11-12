@@ -29,6 +29,9 @@ interface TrashBinDashboardProps {
 const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantinlt1' }) => {
   const router = useRouter();
 
+  // Track if component is mounted to prevent hydration issues
+  const [isMounted, setIsMounted] = useState(false);
+
   // Get trashbinid from slug for API calls
   const trashbinid = binSlugToIdMapping[binSlug.toLowerCase()];
 
@@ -36,6 +39,11 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
   const [trashBinName, setTrashBinName] = React.useState<string>('Loading...');
   const [batteryPercentage, setBatteryPercentage] = React.useState<number>(0);
   const [condition, setCondition] = React.useState<string>('Loading...');
+
+  // Set mounted state
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Fetch bin and device data on mount
   React.useEffect(() => {
@@ -798,6 +806,18 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
       </div>
     </div>
   );
+
+  // Prevent hydration mismatch by showing loading state during SSR
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-lg text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Loading state
   if (loading) {
