@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ChevronDown, AlertCircle } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { ToggleButton } from "./ToggleButton";
 import { BarChart } from "./BarChart";
 import { apiService, Device } from "@/services/api";
@@ -73,8 +73,8 @@ const generateSlug = (name: string): string => {
 const MonitoringPage = () => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedFloor, setSelectedFloor] = useState("Semua Lantai");
-  const [selectedStatus, setSelectedStatus] = useState("Semua Status");
+  const [selectedFloors, setSelectedFloors] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [floorDropdownOpen, setFloorDropdownOpen] = useState(false);
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [volumeToggle, setVolumeToggle] = useState<"percentage" | "donut">("donut");
@@ -166,27 +166,26 @@ const MonitoringPage = () => {
   }, []);
 
   // Floor options
-  const floorOptions = ["Semua Lantai", ...Array.from({ length: 11 }, (_, i) => `Lantai ${i + 1}`)];
+  const floorOptions = Array.from({ length: 11 }, (_, i) => `Lantai ${i + 1}`);
 
   // Status options
-  const statusOptions = ["Semua Status", "Kosong", "Menengah", "Hampir Penuh", "Penuh"];
+  const statusOptions = ["Kosong", "Menengah", "Hampir Penuh", "Penuh"];
 
   // Filter bins
   const filteredBins = useMemo(() => {
     return bins.filter(bin => {
       const matchesSearch = bin.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            bin.location.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesFloor = selectedFloor === "Semua Lantai" || bin.floor.toLowerCase() === selectedFloor.toLowerCase();
 
-      let matchesStatus = true;
-      if (selectedStatus !== "Semua Status") {
-        const category = getStatusCategory(bin.max_percentage);
-        matchesStatus = category === selectedStatus;
-      }
+      const matchesFloor = selectedFloors.length === 0 ||
+                          selectedFloors.some(floor => bin.floor.toLowerCase() === floor.toLowerCase());
+
+      const matchesStatus = selectedStatuses.length === 0 ||
+                           selectedStatuses.includes(getStatusCategory(bin.max_percentage));
 
       return matchesSearch && matchesFloor && matchesStatus;
     });
-  }, [bins, searchQuery, selectedFloor, selectedStatus]);
+  }, [bins, searchQuery, selectedFloors, selectedStatuses]);
 
   // Calculate status counts
   const statusCounts = useMemo(() => {
@@ -263,39 +262,218 @@ const MonitoringPage = () => {
 
       {/* Main Content */}
       <div className="flex-1 px-3 sm:px-4 md:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4">
-        {/* Status Overview - Mobile: Stack, Desktop: Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+        {/* Status Overview - Mobile: 4 columns, Desktop: 4 columns */}
+        <div className="grid grid-cols-4 gap-2 sm:gap-3">
           {/* Penuh */}
-          <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-lg p-3 sm:p-4 text-white shadow-md border-2 border-red-600">
+          <div
+            onClick={() => {
+              if (selectedStatuses.includes('Penuh')) {
+                setSelectedStatuses(selectedStatuses.filter(s => s !== 'Penuh'));
+              } else {
+                setSelectedStatuses([...selectedStatuses, 'Penuh']);
+              }
+            }}
+            className={`bg-gradient-to-br from-red-500 to-red-600 rounded-lg p-3 sm:p-4 text-white shadow-md border-2 flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:scale-105 hover:shadow-lg ${
+              selectedStatuses.includes('Penuh') ? 'border-white ring-4 ring-red-300' : 'border-red-600'
+            }`}
+          >
             <h2 className="text-sm sm:text-base md:text-lg font-bold mb-1">Penuh</h2>
             <p className="text-2xl sm:text-3xl md:text-4xl font-bold">{statusCounts['Penuh']}</p>
           </div>
 
           {/* Hampir Penuh */}
-          <div className="bg-white rounded-lg p-3 sm:p-4 shadow-md border-2 border-orange-500">
+          <div
+            onClick={() => {
+              if (selectedStatuses.includes('Hampir Penuh')) {
+                setSelectedStatuses(selectedStatuses.filter(s => s !== 'Hampir Penuh'));
+              } else {
+                setSelectedStatuses([...selectedStatuses, 'Hampir Penuh']);
+              }
+            }}
+            className={`bg-white rounded-lg p-3 sm:p-4 shadow-md border-2 flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:scale-105 hover:shadow-lg ${
+              selectedStatuses.includes('Hampir Penuh') ? 'border-orange-600 ring-4 ring-orange-300' : 'border-orange-500'
+            }`}
+          >
             <h2 className="text-sm sm:text-base md:text-lg font-bold mb-1 text-gray-800">Hampir Penuh</h2>
             <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-orange-600">{statusCounts['Hampir Penuh']}</p>
           </div>
 
           {/* Menengah */}
-          <div className="bg-white rounded-lg p-3 sm:p-4 shadow-md border-2 border-yellow-400">
+          <div
+            onClick={() => {
+              if (selectedStatuses.includes('Menengah')) {
+                setSelectedStatuses(selectedStatuses.filter(s => s !== 'Menengah'));
+              } else {
+                setSelectedStatuses([...selectedStatuses, 'Menengah']);
+              }
+            }}
+            className={`bg-white rounded-lg p-3 sm:p-4 shadow-md border-2 flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:scale-105 hover:shadow-lg ${
+              selectedStatuses.includes('Menengah') ? 'border-yellow-600 ring-4 ring-yellow-300' : 'border-yellow-400'
+            }`}
+          >
             <h2 className="text-sm sm:text-base md:text-lg font-bold mb-1 text-gray-800">Menengah</h2>
             <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-yellow-600">{statusCounts['Menengah']}</p>
           </div>
 
           {/* Kosong */}
-          <div className="bg-white rounded-lg p-3 sm:p-4 shadow-md border-2 border-blue-400">
+          <div
+            onClick={() => {
+              if (selectedStatuses.includes('Kosong')) {
+                setSelectedStatuses(selectedStatuses.filter(s => s !== 'Kosong'));
+              } else {
+                setSelectedStatuses([...selectedStatuses, 'Kosong']);
+              }
+            }}
+            className={`bg-white rounded-lg p-3 sm:p-4 shadow-md border-2 flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:scale-105 hover:shadow-lg ${
+              selectedStatuses.includes('Kosong') ? 'border-blue-600 ring-4 ring-blue-300' : 'border-blue-400'
+            }`}
+          >
             <h2 className="text-sm sm:text-base md:text-lg font-bold mb-1 text-gray-800">Kosong</h2>
             <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-600">{statusCounts['Kosong']}</p>
           </div>
         </div>
 
-        {/* Charts Section - Mobile: Stack, Desktop: Side by side */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        {/* Search, Filters, and Charts - Mobile: 2 cols (Filter full, Volume/Weight 50:50), Desktop: 4 columns (2:1:1 ratio) */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* Search and Filters - Takes 2 columns on mobile and desktop */}
+          <div className="col-span-2 bg-white rounded-lg p-2.5 sm:p-3 shadow-md border border-gray-200">
+            <h3 className="text-sm sm:text-base font-bold text-gray-800 mb-2">Filter</h3>
+            <div className="flex flex-col gap-2">
+              {/* Search */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Cari Bin..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-2.5 sm:px-3 py-1.5 sm:py-2 border-2 border-blue-300 rounded-lg text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-500 text-gray-800 pr-9"
+                />
+                <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+              </div>
+
+              {/* Floor and Status Dropdowns - Side by side */}
+              <div className="flex gap-2">
+                {/* Floor Dropdown */}
+                <div className="relative flex-1">
+                  <button
+                    onClick={() => {
+                      setFloorDropdownOpen(!floorDropdownOpen);
+                      setStatusDropdownOpen(false);
+                    }}
+                    className="w-full px-2.5 sm:px-3 py-1.5 sm:py-2 border-2 border-blue-300 rounded-lg text-xs sm:text-sm font-medium bg-white flex items-center justify-between hover:border-blue-500 text-gray-800"
+                  >
+                    <span className="truncate">
+                      {selectedFloors.length === 0
+                        ? "Semua Lantai"
+                        : selectedFloors.length === 1
+                        ? selectedFloors[0]
+                        : `${selectedFloors.length} Lantai`}
+                    </span>
+                    <ChevronDown size={16} />
+                  </button>
+                  {floorDropdownOpen && (
+                    <div className="absolute z-20 w-full mt-1 bg-white border-2 border-blue-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      <div
+                        onClick={() => setSelectedFloors([])}
+                        className="px-2.5 sm:px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-xs sm:text-sm font-medium text-gray-800 border-b border-gray-200"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedFloors.length === 0}
+                          onChange={() => {}}
+                          className="mr-2"
+                        />
+                        Semua Lantai
+                      </div>
+                      {floorOptions.map((floor) => (
+                        <div
+                          key={floor}
+                          onClick={() => {
+                            setSelectedFloors(prev =>
+                              prev.includes(floor)
+                                ? prev.filter(f => f !== floor)
+                                : [...prev, floor]
+                            );
+                          }}
+                          className="px-2.5 sm:px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-xs sm:text-sm font-medium text-gray-800"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedFloors.includes(floor)}
+                            onChange={() => {}}
+                            className="mr-2"
+                          />
+                          {floor}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Status Dropdown */}
+                <div className="relative flex-1">
+                  <button
+                    onClick={() => {
+                      setStatusDropdownOpen(!statusDropdownOpen);
+                      setFloorDropdownOpen(false);
+                    }}
+                    className="w-full px-2.5 sm:px-3 py-1.5 sm:py-2 border-2 border-blue-300 rounded-lg text-xs sm:text-sm font-medium bg-white flex items-center justify-between hover:border-blue-500 text-gray-800"
+                  >
+                    <span className="truncate">
+                      {selectedStatuses.length === 0
+                        ? "Semua Status"
+                        : selectedStatuses.length === 1
+                        ? selectedStatuses[0]
+                        : `${selectedStatuses.length} Status`}
+                    </span>
+                    <ChevronDown size={16} />
+                  </button>
+                  {statusDropdownOpen && (
+                    <div className="absolute z-20 w-full mt-1 bg-white border-2 border-blue-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      <div
+                        onClick={() => setSelectedStatuses([])}
+                        className="px-2.5 sm:px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-xs sm:text-sm font-medium text-gray-800 border-b border-gray-200"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedStatuses.length === 0}
+                          onChange={() => {}}
+                          className="mr-2"
+                        />
+                        Semua Status
+                      </div>
+                      {statusOptions.map((status) => (
+                        <div
+                          key={status}
+                          onClick={() => {
+                            setSelectedStatuses(prev =>
+                              prev.includes(status)
+                                ? prev.filter(s => s !== status)
+                                : [...prev, status]
+                            );
+                          }}
+                          className="px-2.5 sm:px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-xs sm:text-sm font-medium text-gray-800"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedStatuses.includes(status)}
+                            onChange={() => {}}
+                            className="mr-2"
+                          />
+                          {status}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Volume Chart */}
-          <div className="bg-white rounded-lg p-3 sm:p-4 shadow-md border border-gray-200">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-base sm:text-lg font-bold text-gray-800">Volume</h3>
+          <div className="bg-white rounded-lg p-2.5 sm:p-3 shadow-md border border-gray-200">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-sm sm:text-base font-bold text-gray-800">Volume</h3>
               <ToggleButton
                 value={volumeToggle === 'donut' ? 'weight' : 'volume'}
                 onChange={(val) => setVolumeToggle(val === 'weight' ? 'donut' : 'percentage')}
@@ -306,7 +484,7 @@ const MonitoringPage = () => {
                 size="small"
               />
             </div>
-            <div className="h-48 sm:h-56">
+            <div className="h-36 sm:h-44">
               {volumeToggle === "donut" ? (
                 <div className="flex justify-center items-center h-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -315,8 +493,8 @@ const MonitoringPage = () => {
                         data={volumeData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={40}
-                        outerRadius={70}
+                        innerRadius={36}
+                        outerRadius={66}
                         dataKey="value"
                         onMouseEnter={(_, index) => setSelectedVolumeSlice(index)}
                         onMouseLeave={() => setSelectedVolumeSlice(null)}
@@ -330,6 +508,17 @@ const MonitoringPage = () => {
                           />
                         ))}
                       </Pie>
+                      <Tooltip
+                        formatter={(value: number) => `${value}%`}
+                        contentStyle={{
+                          backgroundColor: 'white',
+                          border: '2px solid #3b82f6',
+                          borderRadius: '8px',
+                          padding: '8px 12px',
+                          fontSize: '14px',
+                          fontWeight: 'bold'
+                        }}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -346,9 +535,9 @@ const MonitoringPage = () => {
           </div>
 
           {/* Weight Chart */}
-          <div className="bg-white rounded-lg p-3 sm:p-4 shadow-md border border-gray-200">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-base sm:text-lg font-bold text-gray-800">Weight</h3>
+          <div className="bg-white rounded-lg p-2.5 sm:p-3 shadow-md border border-gray-200">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-sm sm:text-base font-bold text-gray-800">Weight</h3>
               <ToggleButton
                 value={weightToggle === 'donut' ? 'weight' : 'volume'}
                 onChange={(val) => setWeightToggle(val === 'weight' ? 'donut' : 'percentage')}
@@ -359,7 +548,7 @@ const MonitoringPage = () => {
                 size="small"
               />
             </div>
-            <div className="h-48 sm:h-56">
+            <div className="h-36 sm:h-44">
               {weightToggle === "donut" ? (
                 <div className="flex justify-center items-center h-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -368,8 +557,8 @@ const MonitoringPage = () => {
                         data={weightData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={40}
-                        outerRadius={70}
+                        innerRadius={36}
+                        outerRadius={66}
                         dataKey="value"
                         onMouseEnter={(_, index) => setSelectedWeightSlice(index)}
                         onMouseLeave={() => setSelectedWeightSlice(null)}
@@ -383,6 +572,17 @@ const MonitoringPage = () => {
                           />
                         ))}
                       </Pie>
+                      <Tooltip
+                        formatter={(value: number) => `${value}%`}
+                        contentStyle={{
+                          backgroundColor: 'white',
+                          border: '2px solid #3b82f6',
+                          borderRadius: '8px',
+                          padding: '8px 12px',
+                          fontSize: '14px',
+                          fontWeight: 'bold'
+                        }}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -394,83 +594,6 @@ const MonitoringPage = () => {
                     onBarHover={setSelectedWeightSlice}
                     unit="g"
                   />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Search and Filters - Mobile: Stack, Desktop: Row */}
-        <div className="bg-white rounded-lg p-3 sm:p-4 shadow-md border border-gray-200">
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-            {/* Search */}
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                placeholder="Cari Bin..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border-2 border-blue-300 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 text-gray-800 pr-10"
-              />
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500" size={18} />
-            </div>
-
-            {/* Floor Dropdown */}
-            <div className="w-full sm:w-40 relative">
-              <button
-                onClick={() => {
-                  setFloorDropdownOpen(!floorDropdownOpen);
-                  setStatusDropdownOpen(false);
-                }}
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border-2 border-blue-300 rounded-lg text-sm font-medium bg-white flex items-center justify-between hover:border-blue-500 text-gray-800"
-              >
-                <span className="truncate">{selectedFloor}</span>
-                <ChevronDown size={18} />
-              </button>
-              {floorDropdownOpen && (
-                <div className="absolute z-20 w-full mt-1 bg-white border-2 border-blue-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  {floorOptions.map((floor) => (
-                    <div
-                      key={floor}
-                      onClick={() => {
-                        setSelectedFloor(floor);
-                        setFloorDropdownOpen(false);
-                      }}
-                      className="px-3 sm:px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm font-medium text-gray-800"
-                    >
-                      {floor}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Status Dropdown */}
-            <div className="w-full sm:w-40 relative">
-              <button
-                onClick={() => {
-                  setStatusDropdownOpen(!statusDropdownOpen);
-                  setFloorDropdownOpen(false);
-                }}
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border-2 border-blue-300 rounded-lg text-sm font-medium bg-white flex items-center justify-between hover:border-blue-500 text-gray-800"
-              >
-                <span className="truncate">{selectedStatus}</span>
-                <ChevronDown size={18} />
-              </button>
-              {statusDropdownOpen && (
-                <div className="absolute z-20 w-full mt-1 bg-white border-2 border-blue-300 rounded-lg shadow-lg">
-                  {statusOptions.map((status) => (
-                    <div
-                      key={status}
-                      onClick={() => {
-                        setSelectedStatus(status);
-                        setStatusDropdownOpen(false);
-                      }}
-                      className="px-3 sm:px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm font-medium text-gray-800"
-                    >
-                      {status}
-                    </div>
-                  ))}
                 </div>
               )}
             </div>

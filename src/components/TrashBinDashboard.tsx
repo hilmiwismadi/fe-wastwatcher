@@ -8,6 +8,7 @@ import {
   Pie,
   Cell,
   ResponsiveContainer,
+  Tooltip,
 } from "recharts";
 
 import { TimePeriod } from './TimePeriod';
@@ -723,8 +724,8 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
   const renderBinComponent = (binData: typeof binComponentsData[0]) => (
     <div
       key={binData.id}
-      className={`bg-white p-3 rounded-lg shadow-sm border relative ${
-        binData.isAlert ? "border-red-500 ring-2 ring-red-200" : ""
+      className={`bg-white p-3 rounded-lg shadow-sm relative ${
+        binData.isAlert ? "ring-2 ring-red-500" : ""
       }`}
     >
       {binData.isAlert && (
@@ -781,12 +782,12 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
         </div>
 
         <div className="grid grid-cols-2 gap-1">
-          <div className={`text-center ${binData.cardBg} p-2 rounded border ${binData.borderColor}`}>
+          <div className={`text-center ${binData.cardBg} p-2 rounded`}>
             <p className="text-xs font-medium text-gray-800 mb-1">Weight</p>
             <p className={`text-sm font-bold ${binData.isAlert ? "text-red-600" : "text-black"}`}>{binData.currentData.weight}</p>
             <p className="text-xs text-gray-600">grams</p>
           </div>
-          <div className={`text-center ${binData.cardBg} p-2 rounded border ${binData.borderColor}`}>
+          <div className={`text-center ${binData.cardBg} p-2 rounded`}>
             <p className="text-xs font-medium text-gray-800 mb-1">Volume</p>
             <p className={`text-sm font-bold ${binData.isAlert ? "text-red-600" : "text-black"}`}>
               {binData.currentData.volume}%
@@ -841,7 +842,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
 
       <div className="max-w-full mx-auto flex flex-col gap-2 sm:gap-4">
         {/* Clean Header */}
-        <div className="bg-white p-2 sm:p-3 rounded-lg shadow-sm border">
+        <div className="bg-white p-2 sm:p-3 rounded-lg shadow-sm">
           <div className="flex items-center justify-between">
             {/* Left: Back Button + Title + Battery */}
             <div className="flex items-center gap-2 sm:gap-3">
@@ -1003,13 +1004,21 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
         {/* Row 1: Current Status + Composition (Current Info) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-4">
           {/* Current Status */}
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-2 sm:p-3 rounded-lg shadow-sm border border-blue-200 h-48">
-            <h3 className="text-sm font-bold mb-3 text-blue-800 flex items-center gap-1">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              Current Status
-            </h3>
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-2 sm:p-3 rounded-lg shadow-sm h-48">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-blue-800 flex items-center gap-1">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                Current Status
+              </h3>
+              <button
+                onClick={() => router.push(`/condition/${binSlug}`)}
+                className="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-3 py-1 rounded-lg text-xs font-semibold hover:from-purple-600 hover:to-purple-700 transition-all shadow-sm hover:shadow-md transform hover:scale-105"
+              >
+                Condition
+              </button>
+            </div>
             <div className="space-y-2">
-              <div className="bg-white p-2 rounded-lg shadow-sm border border-blue-100">
+              <div className="bg-white p-2 rounded-lg shadow-sm">
                 <div className="flex items-center gap-1 mb-1">
                   <AlertCircle className="w-3 h-3 text-blue-600" />
                   <span className="text-xs font-medium text-gray-700">Status</span>
@@ -1034,7 +1043,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
           </div>
 
           {/* Composition */}
-          <div className="bg-white p-2 sm:p-3 rounded-lg shadow-sm border">
+          <div className="bg-white p-2 sm:p-3 rounded-lg shadow-sm">
             <div className="flex justify-between items-center mb-1">
               <h3 className="text-sm font-bold text-gray-800">Composition</h3>
               <ToggleButton
@@ -1087,11 +1096,22 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
                             <Cell
                               key={`cell-${index}`}
                               fill={entry.color}
-                              stroke={selectedSlice === index ? "#000" : "none"}
-                              strokeWidth={selectedSlice === index ? 2 : 0}
+                              stroke="none"
+                              strokeWidth={0}
                             />
                           ))}
                         </Pie>
+                        <Tooltip
+                          formatter={(value: number) => `${value}g`}
+                          contentStyle={{
+                            backgroundColor: 'white',
+                            border: '2px solid #3b82f6',
+                            borderRadius: '8px',
+                            padding: '8px 12px',
+                            fontSize: '14px',
+                            fontWeight: 'bold'
+                          }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -1130,7 +1150,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
           </div>
 
           {/* Total Monitoring */}
-          <div className="lg:col-span-3 bg-white p-2 sm:p-3 rounded-lg shadow-sm border">
+          <div className="lg:col-span-3 bg-white p-2 sm:p-3 rounded-lg shadow-sm">
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-gray-800">Total Monitoring</h3>

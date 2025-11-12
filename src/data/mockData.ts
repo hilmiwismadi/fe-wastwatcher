@@ -52,6 +52,15 @@ export const binSlugMapping: Record<string, { name: string; battery: number; con
   }
 };
 
+// Slug to MQTT topic mapping
+export const binSlugToMqttTopic: Record<string, string> = {
+  'kantinlt1': 'CapsE6/KantinSGLC',
+  'timurselasar': 'CapsE6/TimurSelasar',
+  'baratselasar': 'CapsE6/BaratSelasar',
+  'selatanselasar': 'CapsE6/SelatanSelasar',
+  // Add more mappings as needed
+};
+
 // Default fallback values
 export const trashBinName = "Trash Bin Kantin LT 1";
 export const batteryPercentage = 80;

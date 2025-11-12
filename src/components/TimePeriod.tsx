@@ -46,7 +46,7 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border relative overflow-hidden">
+    <div className="bg-white rounded-lg shadow-sm relative overflow-hidden">
       {/* Mobile Minimalist View */}
       <div className="block sm:hidden">
         <button
@@ -68,7 +68,7 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
         </button>
         
         {isExpanded && (
-          <div className="p-3 pt-0 space-y-3 border-t">
+          <div className="p-3 pt-0 space-y-3">
             <div className="space-y-2">
               <label className="block text-xs font-medium text-blue-800">Quick Range</label>
               <TimeRangeSelector

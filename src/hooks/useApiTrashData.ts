@@ -236,7 +236,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
 
   // Format timestamp based on time range
   const formatTimestamp = (item: DailyAnalytics): string => {
-    const timestamp = item.time_interval || item.analysis_date;
+    const timestamp = item.time_interval || item.analysis_date || '';
     if (!timestamp) return '';
 
     const date = new Date(timestamp);
@@ -279,7 +279,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
 
     // Group data by actual timestamp (not formatted) to aggregate multiple devices per timestamp
     const groupedData = dailyAnalytics.reduce((acc, item) => {
-      const timestamp = item.time_interval || item.analysis_date;
+      const timestamp = item.time_interval || item.analysis_date || '';
       if (!timestamp) return acc;
 
       // Use actual timestamp as key for grouping, not the formatted display label
@@ -339,7 +339,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
     if (!residueAnalytics.length) return [];
 
     return residueAnalytics.map((item) => {
-      const timestamp = item.time_interval || item.analysis_date;
+      const timestamp = item.time_interval || item.analysis_date || '';
       const date = new Date(timestamp);
 
       // Format timestamp for tooltip
@@ -367,7 +367,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
     if (!organicAnalytics.length) return [];
 
     return organicAnalytics.map((item) => {
-      const timestamp = item.time_interval || item.analysis_date;
+      const timestamp = item.time_interval || item.analysis_date || '';
       const date = new Date(timestamp);
 
       // Format timestamp for tooltip
@@ -395,7 +395,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
     if (!anorganicAnalytics.length) return [];
 
     return anorganicAnalytics.map((item) => {
-      const timestamp = item.time_interval || item.analysis_date;
+      const timestamp = item.time_interval || item.analysis_date || '';
       const date = new Date(timestamp);
 
       // Format timestamp for tooltip

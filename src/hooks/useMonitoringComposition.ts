@@ -38,7 +38,7 @@ export const useMonitoringComposition = () => {
     if (!compositionData) return [];
 
     const data = compositionData.categories.map(cat => ({
-      name: cat.category === 'B3' ? 'Residue' : cat.category === 'Inorganic' || cat.category === 'Anorganic' ? 'Anorganic' : cat.category,
+      name: cat.category === 'B3' ? 'Residue' : cat.category === 'Inorganic' ? 'Anorganic' : cat.category,
       value: parseFloat(cat.total_weight),
       color: cat.category === 'Organic' ? '#22c55e' : (cat.category === 'Inorganic' || cat.category === 'Anorganic') ? '#eab308' : '#ef4444'
     }));
