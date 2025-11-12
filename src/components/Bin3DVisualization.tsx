@@ -337,7 +337,7 @@ export default function Bin3DVisualization({
     // =====================================================
 
     // Define custom colors for organic bin to distinguish sensors
-    const getSensorColors = (label: string) => {
+    const getSensorColors = (_label: string) => {
       // For organic bin, use default green colors for all sensors
       // For other bin types, return undefined to use their default colors
       return undefined

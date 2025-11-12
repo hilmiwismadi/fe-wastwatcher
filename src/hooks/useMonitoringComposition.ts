@@ -37,11 +37,14 @@ export const useMonitoringComposition = () => {
   const getWeightData = () => {
     if (!compositionData) return [];
 
-    const data = compositionData.categories.map(cat => ({
-      name: cat.category === 'B3' ? 'Residue' : cat.category === 'Inorganic' ? 'Anorganic' : cat.category,
-      value: parseFloat(cat.total_weight),
-      color: cat.category === 'Organic' ? '#22c55e' : (cat.category === 'Inorganic' || cat.category === 'Anorganic') ? '#eab308' : '#ef4444'
-    }));
+    const data = compositionData.categories.map(cat => {
+      const category = cat.category as string;
+      return {
+        name: category === 'B3' ? 'Residue' : category === 'Inorganic' ? 'Anorganic' : category,
+        value: parseFloat(cat.total_weight),
+        color: category === 'Organic' ? '#22c55e' : (category === 'Inorganic' || category === 'Anorganic') ? '#eab308' : '#ef4444'
+      };
+    });
 
     const total = data.reduce((sum, item) => sum + item.value, 0);
     if (total === 0) return [];
@@ -56,11 +59,14 @@ export const useMonitoringComposition = () => {
   const getVolumeData = () => {
     if (!compositionData) return [];
 
-    const data = compositionData.categories.map(cat => ({
-      name: cat.category === 'B3' ? 'Residue' : cat.category === 'Inorganic' || cat.category === 'Anorganic' ? 'Anorganic' : cat.category,
-      value: parseFloat(cat.avg_volume_percentage),
-      color: cat.category === 'Organic' ? '#22c55e' : (cat.category === 'Inorganic' || cat.category === 'Anorganic') ? '#eab308' : '#ef4444'
-    }));
+    const data = compositionData.categories.map(cat => {
+      const category = cat.category as string;
+      return {
+        name: category === 'B3' ? 'Residue' : category === 'Inorganic' || category === 'Anorganic' ? 'Anorganic' : category,
+        value: parseFloat(cat.avg_volume_percentage),
+        color: category === 'Organic' ? '#22c55e' : (category === 'Inorganic' || category === 'Anorganic') ? '#eab308' : '#ef4444'
+      };
+    });
 
     return data.map(item => ({
       ...item,

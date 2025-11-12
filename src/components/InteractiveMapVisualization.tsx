@@ -63,8 +63,8 @@ export default function InteractiveMapVisualization() {
   const [animating, setAnimating] = useState(false);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [strategy, setStrategy] = useState<'shortest' | 'patrol'>('shortest');
-  const [algorithm, setAlgorithm] = useState<'astar' | 'dijkstra'>('astar');
-  const [mode, setMode] = useState<'drag' | 'block' | 'select'>('drag');
+  const [_algorithm, _setAlgorithm] = useState<'astar' | 'dijkstra'>('astar');
+  const [mode, _setMode] = useState<'drag' | 'block' | 'select'>('drag');
   const [selectedPoints, setSelectedPoints] = useState<Position[]>([]);
   const [customBlocked, setCustomBlocked] = useState<Position[]>([]);
   const [speed, setSpeed] = useState<1 | 2 | 4 | 8 | 16>(1);
@@ -104,6 +104,7 @@ export default function InteractiveMapVisualization() {
       setCustomBlocked([]);
       setSelectedPoints([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFloor, animating]);
 
   // Sync bins changes back to allFloorsBins
@@ -195,7 +196,7 @@ export default function InteractiveMapVisualization() {
 
   // Floor 4/5/6 initialization (classroom layout)
   function initializeFloor456(floor: FloorType) {
-    const fillLevels = {
+    const fillLevels: Record<string, { left: number; right: number }> = {
       F4: { left: 70, right: 90 },
       F5: { left: 40, right: 85 },
       F6: { left: 95, right: 55 },
@@ -494,7 +495,7 @@ export default function InteractiveMapVisualization() {
       const end = route[i + 1];
 
       // Get bins and blocked grid for current floor (bins should be blocked)
-      const floorData = allFloorsBins[start.floor];
+      const _floorData = allFloorsBins[start.floor];
       const floorBlocked = initializeFloor(start.floor).blocked;
 
       // If transitioning between floors, just add lift positions

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { TrashData, ChartData, CurrentSpecific, ToggleType } from '../types';
-import { apiService, WasteDistribution, DailyAnalytics, TrashBinWithStatus } from '../services/api';
+import { apiService, WasteDistribution, DailyAnalytics, TrashBinWithStatus, Device } from '../services/api';
 import { TimeRange } from '../components/TimeRangeSelector';
 
 export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?: TimeRange, binId?: string) => {
@@ -22,18 +22,11 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
   const [anorganicAnalytics, setAnorganicAnalytics] = useState<DailyAnalytics[]>([]);
   const [residueAnalytics, setResidueAnalytics] = useState<DailyAnalytics[]>([]);
   const [trashBinsStatus, setTrashBinsStatus] = useState<TrashBinWithStatus[]>([]);
-  const [currentStatusData, setCurrentStatusData] = useState<DailyAnalytics | null>(null);
-  const [binSpecificDevices, setBinSpecificDevices] = useState<any[]>([]);
+  const [binSpecificDevices, setBinSpecificDevices] = useState<Device[]>([]);
 
   // Fetch current status data (latest data, not affected by time range)
   const fetchCurrentStatus = useCallback(async () => {
     try {
-      // Get the very latest data point for current status
-      const latestDataRes = await apiService.getDailyAnalytics(1); // Just get today's data
-      if (latestDataRes.success && latestDataRes.data.length > 0) {
-        setCurrentStatusData(latestDataRes.data[latestDataRes.data.length - 1]);
-      }
-
       // If binId is provided, fetch bin-specific devices
       if (binId) {
         const devicesRes = await apiService.getDevicesByTrashBinId(binId);
@@ -245,7 +238,6 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
       // For "Hourly" view with 5-minute intervals
       // Use wib_time_display from backend if available
       if (item.wib_time_display) {
-        const [hours, minutes] = item.wib_time_display.split(':');
         // Show all intervals as labels (user requested labels for each 5 minutes)
         return item.wib_time_display;
       }

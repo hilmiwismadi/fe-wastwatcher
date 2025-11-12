@@ -36,14 +36,12 @@ interface PageProps {
 
 export default function ConditionPage({ params }: PageProps) {
   const router = useRouter()
-  const [slug, setSlug] = useState<string>('')
   const [mqttTopic, setMqttTopic] = useState<string>('')
   const [binName, setBinName] = useState<string>('')
 
   // Unwrap params
   useEffect(() => {
     params.then(p => {
-      setSlug(p.slug)
       const topic = binSlugToMqttTopic[p.slug.toLowerCase()] || 'CapsE6/Unknown'
       setMqttTopic(topic)
       const name = binSlugMapping[p.slug.toLowerCase()]?.name || 'Unknown Bin'

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiService, TrashBinWithStatus } from '@/services/api';
+import { apiService } from '@/services/api';
 
 interface BinMonitoringData {
   trashbinid: string;

@@ -7,7 +7,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  TooltipProps,
 } from "recharts";
 import { ChartData } from '../types';
 
@@ -18,7 +17,8 @@ interface ChartComponentProps {
 }
 
 // Custom tooltip to show full timestamp
-const CustomTooltip: React.FC<TooltipProps<number, string>> = ({ active, payload }: any) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length > 0) {
     const data = payload[0].payload as ChartData;
     const displayTime = data.fullTimestamp || data.time;

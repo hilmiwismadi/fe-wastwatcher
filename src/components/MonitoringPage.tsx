@@ -88,7 +88,7 @@ const MonitoringPage = () => {
   const [error, setError] = React.useState<string | null>(null);
 
   // Use aggregated composition data from all bins
-  const { compositionData, loading: compositionLoading, error: compositionError, volumeData: aggregatedVolumeData, weightData: aggregatedWeightData } = useMonitoringComposition();
+  const { volumeData: aggregatedVolumeData, weightData: aggregatedWeightData } = useMonitoringComposition();
 
   React.useEffect(() => {
     const fetchData = async () => {

@@ -199,7 +199,6 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
     getTotalChartData,
     getVolumeBarData,
     getDonutData,
-    isAnyBinFull,
   } = useApiTrashData(apiStartDate, apiEndDate, timeRange, trashbinid);
 
   // Separate hooks for category charts (for independent navigation in Hourly view)
@@ -296,7 +295,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
     setShowExportDropdown(!showExportDropdown);
   };
 
-  const generateCSV = (data: any[], devices: Device[], period: 'weekly' | 'monthly' | 'yearly') => {
+  const generateCSV = (data: Record<string, unknown>[], devices: Device[]) => {
     // CSV headers
     const headers = ['Date', 'Time', 'Category', 'Device ID', 'Weight (kg)', 'Volume (%)', 'Fill Level', 'Collection Events'];
 
@@ -326,11 +325,11 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
 
     // CSV rows
     const rows: string[][] = [];
-    let prevVolumeByDevice = new Map<string, number>();
+    const prevVolumeByDevice = new Map<string, number>();
 
-    data.forEach((item, index) => {
+    data.forEach((item) => {
       // Get timestamp from various possible fields
-      const timestamp = item.time_interval || item.analysis_date || item.timestamp || '';
+      const timestamp = (item.time_interval || item.analysis_date || item.timestamp || '') as string;
 
       // Parse timestamp to separate date and time
       let date = '';
@@ -359,10 +358,10 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
         }
       }
 
-      const deviceId = item.deviceid || '-';
-      const category = item.category || deviceCategoryMap.get(deviceId) || 'All';
-      const weight = parseFloat(item.avg_weight || item.weight_kg || '0').toFixed(2);
-      const volume = parseFloat(item.avg_volume || item.fill_percentage || '0');
+      const deviceId = (item.deviceid || '-') as string;
+      const category = (item.category || deviceCategoryMap.get(deviceId) || 'All') as string;
+      const weight = parseFloat((item.avg_weight || item.weight_kg || '0') as string).toFixed(2);
+      const volume = parseFloat((item.avg_volume || item.fill_percentage || '0') as string);
       const fillLevel = getFillLevel(volume);
 
       // Check for collection event
@@ -485,7 +484,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
       if (response.success && response.data) {
         setExportStatus('Generating CSV file...');
 
-        const csvContent = generateCSV(response.data, devices, period);
+        const csvContent = generateCSV(response.data as unknown as Record<string, unknown>[], devices);
         const categoryLabel = category === 'all' ? 'All' : category;
         const filename = `${trashBinName.replace(/\s+/g, '_')}_${categoryLabel}_${period}_export_${new Date().toISOString().split('T')[0]}.csv`;
         downloadCSV(csvContent, filename);
@@ -519,6 +518,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
   // Helper function to get category chart data with correct toggle
   const getResidueChartDataWithToggle = () => {
     if (!residueData.residueAnalytics?.length) return [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return residueData.residueAnalytics.map((item: any) => {
       const timestamp = item.time_interval || item.analysis_date;
       const date = new Date(timestamp);
@@ -536,14 +536,14 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
         fullTimestamp = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       }
 
-      const formatTimestamp = (item: any): string => {
-        const timestamp = item.time_interval || item.analysis_date;
+      const formatTimestamp = (item: Record<string, unknown>): string => {
+        const timestamp = (item.time_interval || item.analysis_date) as string;
         if (!timestamp) return '';
         const date = new Date(timestamp);
 
         if (timeRange === 'fiveMinute') {
           if (item.wib_time_display) {
-            return item.wib_time_display;
+            return item.wib_time_display as string;
           }
           const minutes = date.getUTCMinutes();
           const hours = date.getUTCHours();
@@ -573,6 +573,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
 
   const getOrganicChartDataWithToggle = () => {
     if (!organicData.organicAnalytics?.length) return [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return organicData.organicAnalytics.map((item: any) => {
       const timestamp = item.time_interval || item.analysis_date;
       const date = new Date(timestamp);
@@ -589,14 +590,14 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
         fullTimestamp = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       }
 
-      const formatTimestamp = (item: any): string => {
-        const timestamp = item.time_interval || item.analysis_date;
+      const formatTimestamp = (item: Record<string, unknown>): string => {
+        const timestamp = (item.time_interval || item.analysis_date) as string;
         if (!timestamp) return '';
         const date = new Date(timestamp);
 
         if (timeRange === 'fiveMinute') {
           if (item.wib_time_display) {
-            return item.wib_time_display;
+            return item.wib_time_display as string;
           }
           const minutes = date.getUTCMinutes();
           const hours = date.getUTCHours();
@@ -626,6 +627,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
 
   const getAnorganicChartDataWithToggle = () => {
     if (!anorganicData.anorganicAnalytics?.length) return [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return anorganicData.anorganicAnalytics.map((item: any) => {
       const timestamp = item.time_interval || item.analysis_date;
       const date = new Date(timestamp);
@@ -642,14 +644,14 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
         fullTimestamp = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       }
 
-      const formatTimestamp = (item: any): string => {
-        const timestamp = item.time_interval || item.analysis_date;
+      const formatTimestamp = (item: Record<string, unknown>): string => {
+        const timestamp = (item.time_interval || item.analysis_date) as string;
         if (!timestamp) return '';
         const date = new Date(timestamp);
 
         if (timeRange === 'fiveMinute') {
           if (item.wib_time_display) {
-            return item.wib_time_display;
+            return item.wib_time_display as string;
           }
           const minutes = date.getUTCMinutes();
           const hours = date.getUTCHours();
