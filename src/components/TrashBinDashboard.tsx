@@ -21,6 +21,15 @@ import { useApiTrashData } from '../hooks/useApiTrashData';
 import { binSlugToIdMapping } from '../data/mockData';
 import { getDefaultDateRange, combineDateAndTime, getTimeRangeDate } from '../utils/dateUtils';
 import { apiService, Device } from '../services/api';
+import {
+  kantinTotalData,
+  kantinOrganicData,
+  kantinAnorganicData,
+  kantinResidueData,
+  getKantinHourlyData,
+  getKantinHourData,
+  kantinCurrentStatus
+} from '../data/kantinMockData';
 
 interface TrashBinDashboardProps {
   binSlug?: string; // URL slug for the bin (e.g., "kantinlt1")
@@ -62,7 +71,12 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
         ]);
 
         if (binResponse.success && binResponse.data) {
-          setTrashBinName(binResponse.data.name);
+          // Special case: Override name for kantinlt1 slug
+          if (binSlug.toLowerCase() === 'kantinlt1') {
+            setTrashBinName('Kantin LT 1');
+          } else {
+            setTrashBinName(binResponse.data.name);
+          }
         }
 
         if (devicesResponse.success && devicesResponse.data && devicesResponse.data.length > 0) {
@@ -107,8 +121,19 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
     fetchBinData();
   }, [trashbinid]);
 
+  // Check if this is kantinlt1 (special case with mock data)
+  const isKantinLt1 = binSlug.toLowerCase() === 'kantinlt1';
+
   // Initialize with default date range
-  const defaultRange = getDefaultDateRange();
+  // For kantinlt1, use November 19, 2025 as default
+  const defaultRange = isKantinLt1
+    ? {
+        startDate: '2025-11-19',
+        endDate: '2025-11-19',
+        startTime: '00:00',
+        endTime: '23:59'
+      }
+    : getDefaultDateRange();
 
   // State management
   const [currentBinIndex, setCurrentBinIndex] = useState(0);
@@ -179,6 +204,62 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
   const apiEndDate = totalRange.endDate;
 
   // Custom hook for Total chart data (main data source)
+  let mainHookData = useApiTrashData(apiStartDate, apiEndDate, timeRange, trashbinid);
+
+  // Separate hooks for category charts (for independent navigation in Hourly view)
+  const residueRange = getChartTimeRange('residue');
+  const organicRange = getChartTimeRange('organic');
+  const anorganicRange = getChartTimeRange('anorganic');
+
+  let residueData = useApiTrashData(residueRange.startDate, residueRange.endDate, timeRange, trashbinid);
+  let organicData = useApiTrashData(organicRange.startDate, organicRange.endDate, timeRange, trashbinid);
+  let anorganicData = useApiTrashData(anorganicRange.startDate, anorganicRange.endDate, timeRange, trashbinid);
+
+  // Override data for kantinlt1 with special mock data
+  if (isKantinLt1) {
+    // Override daily analytics based on time range
+    if (timeRange === 'hourly') {
+      // Day view: Show 24 hourly aggregated points
+      const hourlyTotal = getKantinHourlyData(kantinTotalData);
+      const hourlyResidue = getKantinHourlyData(kantinResidueData);
+      const hourlyOrganic = getKantinHourlyData(kantinOrganicData);
+      const hourlyAnorganic = getKantinHourlyData(kantinAnorganicData);
+
+      // Override the analytics data
+      mainHookData = { ...mainHookData, dailyAnalytics: hourlyTotal, loading: false, error: null };
+      residueData = { ...residueData, residueAnalytics: hourlyResidue, loading: false, error: null };
+      organicData = { ...organicData, organicAnalytics: hourlyOrganic, loading: false, error: null };
+      anorganicData = { ...anorganicData, anorganicAnalytics: hourlyAnorganic, loading: false, error: null };
+    } else if (timeRange === 'fiveMinute') {
+      // Hourly view: Show 12 points for the selected hour (5-minute intervals)
+      const totalHourData = getKantinHourData(kantinTotalData, hourlyOffsets.total);
+      const residueHourData = getKantinHourData(kantinResidueData, hourlyOffsets.residue);
+      const organicHourData = getKantinHourData(kantinOrganicData, hourlyOffsets.organic);
+      const anorganicHourData = getKantinHourData(kantinAnorganicData, hourlyOffsets.anorganic);
+
+      // Override the analytics data
+      mainHookData = { ...mainHookData, dailyAnalytics: totalHourData, loading: false, error: null };
+      residueData = { ...residueData, residueAnalytics: residueHourData, loading: false, error: null };
+      organicData = { ...organicData, organicAnalytics: organicHourData, loading: false, error: null };
+      anorganicData = { ...anorganicData, anorganicAnalytics: anorganicHourData, loading: false, error: null };
+    }
+
+    // Override current status data
+    mainHookData = {
+      ...mainHookData,
+      currentSpecific: {
+        organic: { weight: kantinCurrentStatus.organic.weight, volume: kantinCurrentStatus.organic.volume },
+        anorganic: { weight: kantinCurrentStatus.anorganic.weight, volume: kantinCurrentStatus.anorganic.volume },
+        residue: { weight: kantinCurrentStatus.residue.weight, volume: kantinCurrentStatus.residue.volume }
+      },
+      currentTotals: {
+        weight: kantinCurrentStatus.organic.weight + kantinCurrentStatus.anorganic.weight + kantinCurrentStatus.residue.weight,
+        volume: (kantinCurrentStatus.organic.volume + kantinCurrentStatus.anorganic.volume + kantinCurrentStatus.residue.volume) / 3
+      }
+    };
+  }
+
+  // Destructure the final data (after potential override)
   const {
     loading,
     error,
@@ -199,16 +280,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
     getTotalChartData,
     getVolumeBarData,
     getDonutData,
-  } = useApiTrashData(apiStartDate, apiEndDate, timeRange, trashbinid);
-
-  // Separate hooks for category charts (for independent navigation in Hourly view)
-  const residueRange = getChartTimeRange('residue');
-  const organicRange = getChartTimeRange('organic');
-  const anorganicRange = getChartTimeRange('anorganic');
-
-  const residueData = useApiTrashData(residueRange.startDate, residueRange.endDate, timeRange, trashbinid);
-  const organicData = useApiTrashData(organicRange.startDate, organicRange.endDate, timeRange, trashbinid);
-  const anorganicData = useApiTrashData(anorganicRange.startDate, anorganicRange.endDate, timeRange, trashbinid);
+  } = mainHookData;
 
   const handleTimeRangeChange = (newTimeRange: TimeRange) => {
     setTimeRange(newTimeRange);
