@@ -101,11 +101,24 @@ const MonitoringPage = () => {
           apiService.getDevicesWithHealth(),
         ]);
 
+        console.log('API Responses:', { binsResponse, devicesResponse });
+
         if (binsResponse.success && devicesResponse.success) {
           const binMap = new Map<string, BinData>();
 
+          // Ensure data arrays exist
+          const binsData = Array.isArray(binsResponse.data) ? binsResponse.data : [];
+          const devicesData = Array.isArray(devicesResponse.data) ? devicesResponse.data : [];
+
+          if (binsData.length === 0) {
+            console.warn('No bins data received from API');
+          }
+          if (devicesData.length === 0) {
+            console.warn('No devices data received from API');
+          }
+
           // Initialize bins
-          binsResponse.data.forEach(bin => {
+          binsData.forEach(bin => {
             binMap.set(bin.trashbinid, {
               trashbinid: bin.trashbinid,
               name: binNameMapping[bin.name] || bin.name, // Apply name mapping
@@ -122,7 +135,7 @@ const MonitoringPage = () => {
           });
 
           // Populate with device data
-          devicesResponse.data.forEach((device: Device) => {
+          devicesData.forEach((device: Device) => {
             const binData = binMap.get(device.trashbinid);
             if (binData) {
               const percentage = device.average_volume_percentage || 0;
