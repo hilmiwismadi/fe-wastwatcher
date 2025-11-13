@@ -29,6 +29,8 @@ import {
   getKantinHourlyData,
   getKantinHourData,
   getKantinDailyData,
+  getKantinWeeklyData,
+  getKantinMonthlyData,
   kantinCurrentStatus
 } from '../data/kantinMockData';
 
@@ -244,19 +246,30 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
       residueData = { ...residueData, residueAnalytics: residueHourData, loading: false, error: null };
       organicData = { ...organicData, organicAnalytics: organicHourData, loading: false, error: null };
       anorganicData = { ...anorganicData, anorganicAnalytics: anorganicHourData, loading: false, error: null };
-    } else if (timeRange === 'daily' || timeRange === 'weekly') {
-      // Week/Month view: Show single aggregated data point for Nov 19
-      // Aggregate all 288 data points into a single daily summary
-      const dailyTotal = getKantinDailyData(kantinTotalData);
-      const dailyResidue = getKantinDailyData(kantinResidueData);
-      const dailyOrganic = getKantinDailyData(kantinOrganicData);
-      const dailyAnorganic = getKantinDailyData(kantinAnorganicData);
+    } else if (timeRange === 'daily') {
+      // Week view: Show 7 days of data (Nov 13-19, 2025)
+      const weeklyTotal = getKantinWeeklyData(kantinTotalData);
+      const weeklyResidue = getKantinWeeklyData(kantinResidueData);
+      const weeklyOrganic = getKantinWeeklyData(kantinOrganicData);
+      const weeklyAnorganic = getKantinWeeklyData(kantinAnorganicData);
 
-      // Override with daily aggregates
-      mainHookData = { ...mainHookData, dailyAnalytics: dailyTotal, loading: false, error: null };
-      residueData = { ...residueData, residueAnalytics: dailyResidue, loading: false, error: null };
-      organicData = { ...organicData, organicAnalytics: dailyOrganic, loading: false, error: null };
-      anorganicData = { ...anorganicData, anorganicAnalytics: dailyAnorganic, loading: false, error: null };
+      // Override with weekly data
+      mainHookData = { ...mainHookData, dailyAnalytics: weeklyTotal, loading: false, error: null };
+      residueData = { ...residueData, residueAnalytics: weeklyResidue, loading: false, error: null };
+      organicData = { ...organicData, organicAnalytics: weeklyOrganic, loading: false, error: null };
+      anorganicData = { ...anorganicData, anorganicAnalytics: weeklyAnorganic, loading: false, error: null };
+    } else if (timeRange === 'weekly') {
+      // Month view: Show 30 days of data (Oct 20 - Nov 19, 2025)
+      const monthlyTotal = getKantinMonthlyData(kantinTotalData);
+      const monthlyResidue = getKantinMonthlyData(kantinResidueData);
+      const monthlyOrganic = getKantinMonthlyData(kantinOrganicData);
+      const monthlyAnorganic = getKantinMonthlyData(kantinAnorganicData);
+
+      // Override with monthly data
+      mainHookData = { ...mainHookData, dailyAnalytics: monthlyTotal, loading: false, error: null };
+      residueData = { ...residueData, residueAnalytics: monthlyResidue, loading: false, error: null };
+      organicData = { ...organicData, organicAnalytics: monthlyOrganic, loading: false, error: null };
+      anorganicData = { ...anorganicData, anorganicAnalytics: monthlyAnorganic, loading: false, error: null };
     }
 
     // Override current status data

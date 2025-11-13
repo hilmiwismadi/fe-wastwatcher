@@ -188,6 +188,82 @@ export const getKantinDailyData = (categoryData: DailyAnalytics[]): DailyAnalyti
   }];
 };
 
+// Helper function to generate weekly data (7 days: Nov 13-19, 2025)
+export const getKantinWeeklyData = (categoryData: DailyAnalytics[]): DailyAnalytics[] => {
+  if (categoryData.length === 0) return [];
+
+  const weeklyData: DailyAnalytics[] = [];
+  const baseDate = new Date('2025-11-19'); // Nov 19 (Tuesday)
+
+  // Calculate base daily average from Nov 19 data
+  const totalWeight = categoryData.reduce((sum, item) => sum + item.avg_weight, 0);
+  const totalVolume = categoryData.reduce((sum, item) => sum + item.avg_volume, 0);
+  const avgWeight = totalWeight / categoryData.length;
+  const avgVolume = totalVolume / categoryData.length;
+
+  // Generate 7 days of data (Nov 13-19)
+  for (let daysBack = 6; daysBack >= 0; daysBack--) {
+    const date = new Date(baseDate);
+    date.setDate(date.getDate() - daysBack);
+
+    // Add daily variation (±15%)
+    const variation = 0.85 + (Math.random() * 0.3); // 0.85 to 1.15
+    const dayWeight = avgWeight * variation;
+    const dayVolume = avgVolume * variation;
+
+    weeklyData.push({
+      time_interval: date.toISOString(),
+      analysis_date: date.toISOString(),
+      wib_time_display: '00:00',
+      deviceid: categoryData[0].deviceid,
+      category: categoryData[0].category,
+      avg_weight: Math.round(dayWeight * 100) / 100,
+      avg_volume: Math.round(dayVolume * 10) / 10
+    });
+  }
+
+  return weeklyData;
+};
+
+// Helper function to generate monthly data (30 days: Oct 20 - Nov 19, 2025)
+export const getKantinMonthlyData = (categoryData: DailyAnalytics[]): DailyAnalytics[] => {
+  if (categoryData.length === 0) return [];
+
+  const monthlyData: DailyAnalytics[] = [];
+  const baseDate = new Date('2025-11-19'); // Nov 19
+
+  // Calculate base daily average from Nov 19 data
+  const totalWeight = categoryData.reduce((sum, item) => sum + item.avg_weight, 0);
+  const totalVolume = categoryData.reduce((sum, item) => sum + item.avg_volume, 0);
+  const avgWeight = totalWeight / categoryData.length;
+  const avgVolume = totalVolume / categoryData.length;
+
+  // Generate 30 days of data (Oct 20 - Nov 19)
+  for (let daysBack = 29; daysBack >= 0; daysBack--) {
+    const date = new Date(baseDate);
+    date.setDate(date.getDate() - daysBack);
+
+    // Add daily variation with trending pattern
+    // Slight upward trend over the month (0.8 to 1.1)
+    const trendFactor = 0.8 + (29 - daysBack) / 29 * 0.3;
+    const randomVariation = 0.9 + (Math.random() * 0.2); // ±10%
+    const dayWeight = avgWeight * trendFactor * randomVariation;
+    const dayVolume = avgVolume * trendFactor * randomVariation;
+
+    monthlyData.push({
+      time_interval: date.toISOString(),
+      analysis_date: date.toISOString(),
+      wib_time_display: '00:00',
+      deviceid: categoryData[0].deviceid,
+      category: categoryData[0].category,
+      avg_weight: Math.round(dayWeight * 100) / 100,
+      avg_volume: Math.round(dayVolume * 10) / 10
+    });
+  }
+
+  return monthlyData;
+};
+
 // Mock current status data for Kantin LT 1
 export const kantinCurrentStatus = {
   organic: {
