@@ -8,7 +8,7 @@ export const binSlugToIdMapping: Record<string, string> = {
   'baratlt4': 'TB-BARAT-LT4',
   'baratlt5': 'TB-BARAT-LT5',
   'baratlt6': 'TB-BARAT-LT6',
-  'kantinlt1': 'TB_KANTIN_LT1',
+  'kantinlt1': 'TB-SELATAN-LT1',  // Kantin mapped to Selatan LT1
   'selatanlt1': 'TB-SELATAN-LT1',
   'selatanlt2': 'TB-SELATAN-LT2',
   'selatanlt3': 'TB-SELATAN-LT3',
