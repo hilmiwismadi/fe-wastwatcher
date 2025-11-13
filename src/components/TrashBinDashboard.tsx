@@ -137,7 +137,8 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
 
   // State management
   const [currentBinIndex, setCurrentBinIndex] = useState(0);
-  const [timeRange, setTimeRange] = useState<TimeRange>('daily');
+  // For kantinlt1, default to 'hourly' to show 24 data points (Day view)
+  const [timeRange, setTimeRange] = useState<TimeRange>(isKantinLt1 ? 'hourly' : 'daily');
 
   // Independent hour offsets for each chart
   const [hourlyOffsets, setHourlyOffsets] = useState({
@@ -242,6 +243,19 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
       residueData = { ...residueData, residueAnalytics: residueHourData, loading: false, error: null };
       organicData = { ...organicData, organicAnalytics: organicHourData, loading: false, error: null };
       anorganicData = { ...anorganicData, anorganicAnalytics: anorganicHourData, loading: false, error: null };
+    } else if (timeRange === 'daily' || timeRange === 'weekly') {
+      // Week/Month view: Show single day data point (since we only have Nov 19 data)
+      // Use the daily summary from the 24-hour hourly data
+      const dailyTotal = getKantinHourlyData(kantinTotalData);
+      const dailyResidue = getKantinHourlyData(kantinResidueData);
+      const dailyOrganic = getKantinHourlyData(kantinOrganicData);
+      const dailyAnorganic = getKantinHourlyData(kantinAnorganicData);
+
+      // Override with daily aggregates
+      mainHookData = { ...mainHookData, dailyAnalytics: dailyTotal, loading: false, error: null };
+      residueData = { ...residueData, residueAnalytics: dailyResidue, loading: false, error: null };
+      organicData = { ...organicData, organicAnalytics: dailyOrganic, loading: false, error: null };
+      anorganicData = { ...anorganicData, anorganicAnalytics: dailyAnorganic, loading: false, error: null };
     }
 
     // Override current status data
