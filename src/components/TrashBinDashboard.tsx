@@ -28,6 +28,7 @@ import {
   kantinResidueData,
   getKantinHourlyData,
   getKantinHourData,
+  getKantinDailyData,
   kantinCurrentStatus
 } from '../data/kantinMockData';
 
@@ -244,12 +245,12 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
       organicData = { ...organicData, organicAnalytics: organicHourData, loading: false, error: null };
       anorganicData = { ...anorganicData, anorganicAnalytics: anorganicHourData, loading: false, error: null };
     } else if (timeRange === 'daily' || timeRange === 'weekly') {
-      // Week/Month view: Show single day data point (since we only have Nov 19 data)
-      // Use the daily summary from the 24-hour hourly data
-      const dailyTotal = getKantinHourlyData(kantinTotalData);
-      const dailyResidue = getKantinHourlyData(kantinResidueData);
-      const dailyOrganic = getKantinHourlyData(kantinOrganicData);
-      const dailyAnorganic = getKantinHourlyData(kantinAnorganicData);
+      // Week/Month view: Show single aggregated data point for Nov 19
+      // Aggregate all 288 data points into a single daily summary
+      const dailyTotal = getKantinDailyData(kantinTotalData);
+      const dailyResidue = getKantinDailyData(kantinResidueData);
+      const dailyOrganic = getKantinDailyData(kantinOrganicData);
+      const dailyAnorganic = getKantinDailyData(kantinAnorganicData);
 
       // Override with daily aggregates
       mainHookData = { ...mainHookData, dailyAnalytics: dailyTotal, loading: false, error: null };
@@ -291,10 +292,48 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
     setSelectedSlice,
     currentTotals,
     currentSpecific,
-    getTotalChartData,
+    getTotalChartData: originalGetTotalChartData,
     getVolumeBarData,
     getDonutData,
   } = mainHookData;
+
+  // Create custom chart data function for kantinlt1 that uses the overridden dailyAnalytics
+  const getTotalChartData = () => {
+    if (!isKantinLt1) {
+      return originalGetTotalChartData();
+    }
+
+    // For kantinlt1, use the overridden dailyAnalytics directly
+    if (!mainHookData.dailyAnalytics || mainHookData.dailyAnalytics.length === 0) return [];
+
+    return mainHookData.dailyAnalytics.map((item) => {
+      const timestamp = item.time_interval || item.analysis_date || '';
+      const date = new Date(timestamp);
+
+      let time;
+      let fullTimestamp;
+
+      if (timeRange === 'fiveMinute' && item.wib_time_display) {
+        time = item.wib_time_display;
+        fullTimestamp = item.wib_time_display;
+      } else if (timeRange === 'fiveMinute') {
+        time = `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+        fullTimestamp = time;
+      } else if (timeRange === 'hourly') {
+        time = `${String(date.getUTCHours()).padStart(2, '0')}:00`;
+        fullTimestamp = `${String(date.getUTCHours()).padStart(2, '0')}:00`;
+      } else {
+        time = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        fullTimestamp = time;
+      }
+
+      return {
+        time,
+        fullTimestamp,
+        value: totalToggle === 'weight' ? item.avg_weight : item.avg_volume
+      };
+    });
+  };
 
   const handleTimeRangeChange = (newTimeRange: TimeRange) => {
     setTimeRange(newTimeRange);

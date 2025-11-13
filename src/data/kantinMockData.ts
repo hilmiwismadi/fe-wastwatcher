@@ -166,6 +166,28 @@ export const getKantinHourData = (
   });
 };
 
+// Helper function to get daily aggregated data (1 point for the whole day)
+export const getKantinDailyData = (categoryData: DailyAnalytics[]): DailyAnalytics[] => {
+  if (categoryData.length === 0) return [];
+
+  // Calculate average for the entire day
+  const totalWeight = categoryData.reduce((sum, item) => sum + item.avg_weight, 0);
+  const totalVolume = categoryData.reduce((sum, item) => sum + item.avg_volume, 0);
+  const avgWeight = totalWeight / categoryData.length;
+  const avgVolume = totalVolume / categoryData.length;
+
+  // Use Nov 19, 2025 00:00 as the timestamp for daily view
+  return [{
+    time_interval: '2025-11-19T00:00:00.000Z',
+    analysis_date: '2025-11-19T00:00:00.000Z',
+    wib_time_display: '00:00',
+    deviceid: categoryData[0].deviceid,
+    category: categoryData[0].category,
+    avg_weight: Math.round(avgWeight * 100) / 100,
+    avg_volume: Math.round(avgVolume * 10) / 10
+  }];
+};
+
 // Mock current status data for Kantin LT 1
 export const kantinCurrentStatus = {
   organic: {
