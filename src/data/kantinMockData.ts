@@ -127,6 +127,7 @@ export const getKantinHourlyData = (categoryData: DailyAnalytics[]): DailyAnalyt
   for (let hour = 0; hour < 24; hour++) {
     // Get all data points for this hour (12 points: 00, 05, 10, ..., 55)
     const hourData = categoryData.filter((item) => {
+      if (!item.time_interval) return false;
       const itemDate = new Date(item.time_interval);
       return itemDate.getUTCHours() === hour;
     });
@@ -159,6 +160,7 @@ export const getKantinHourData = (
   hour: number
 ): DailyAnalytics[] => {
   return categoryData.filter((item) => {
+    if (!item.time_interval) return false;
     const itemDate = new Date(item.time_interval);
     return itemDate.getUTCHours() === hour;
   });

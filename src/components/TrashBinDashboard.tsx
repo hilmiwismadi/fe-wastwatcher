@@ -119,7 +119,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
     };
 
     fetchBinData();
-  }, [trashbinid]);
+  }, [trashbinid, binSlug]);
 
   // Check if this is kantinlt1 (special case with mock data)
   const isKantinLt1 = binSlug.toLowerCase() === 'kantinlt1';
