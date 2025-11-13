@@ -1,8 +1,7 @@
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-// Use mock data in production when no API URL is configured or when API is unavailable
-const USE_MOCK_DATA = (process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_API_URL) ||
-                      (typeof window !== 'undefined' && (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('netlify.app')));
+// Use mock data in production ONLY when no API URL is configured
+const USE_MOCK_DATA = process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_API_URL;
 
 // API Response Types
 export interface ApiResponse<T> {
