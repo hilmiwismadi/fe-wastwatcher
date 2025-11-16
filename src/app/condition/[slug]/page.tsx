@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Database } from 'lucide-react'
 import Bin3DVisualization from '@/components/Bin3DVisualization'
+import { ChartComponent } from '@/components/ChartComponent'
 import { binSlugToMqttTopic, binSlugMapping } from '@/data/mockData'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +18,7 @@ interface BinSensorData {
   topRight: number
   bottomLeft: number
   bottomRight: number
-  weight?: number // Weight in grams
+  weight?: number // Weight in kilograms
 }
 
 // History data untuk tracking
@@ -25,7 +26,7 @@ interface BinDataHistory {
   timestamp: string
   sensors: BinSensorData
   average: number
-  weight: number // Weight in grams
+  weight: number // Weight in kilograms
 }
 
 interface PageProps {
@@ -64,6 +65,72 @@ export default function ConditionPage({ params }: PageProps) {
   const [isConnected, setIsConnected] = useState(false)
   const [location, setLocation] = useState<string>('')
   const [lastUpdate, setLastUpdate] = useState<string>('')
+
+  // Chart data for each bin type
+  const [organicChartData, setOrganicChartData] = useState<Array<{time: string, value: number, fullTimestamp: string}>>([])
+  const [anorganicChartData, setAnorganicChartData] = useState<Array<{time: string, value: number, fullTimestamp: string}>>([])
+  const [residueChartData, setResidueChartData] = useState<Array<{time: string, value: number, fullTimestamp: string}>>([])
+
+  // Fetch historical data from database
+  useEffect(() => {
+    const fetchHistoricalData = async () => {
+      if (!mqttTopic) return
+
+      const locationName = mqttTopic.split('/')[1] // Extract location from topic
+
+      try {
+        // Fetch data for each bin type
+        const [organicRes, anorganicRes, residueRes] = await Promise.all([
+          fetch(`http://localhost:5000/api/sensors/readings/${locationName}?binType=organic&limit=20`),
+          fetch(`http://localhost:5000/api/sensors/readings/${locationName}?binType=anorganic&limit=20`),
+          fetch(`http://localhost:5000/api/sensors/readings/${locationName}?binType=residue&limit=20`)
+        ])
+
+        if (organicRes.ok) {
+          const data = await organicRes.json()
+          if (data.success && data.data) {
+            const chartData = data.data.reverse().map((reading: any) => ({
+              time: new Date(reading.timestamp).toLocaleTimeString(),
+              value: reading.average_distance || 0,
+              fullTimestamp: new Date(reading.timestamp).toLocaleString()
+            }))
+            setOrganicChartData(chartData)
+          }
+        }
+
+        if (anorganicRes.ok) {
+          const data = await anorganicRes.json()
+          if (data.success && data.data) {
+            const chartData = data.data.reverse().map((reading: any) => ({
+              time: new Date(reading.timestamp).toLocaleTimeString(),
+              value: reading.average_distance || 0,
+              fullTimestamp: new Date(reading.timestamp).toLocaleString()
+            }))
+            setAnorganicChartData(chartData)
+          }
+        }
+
+        if (residueRes.ok) {
+          const data = await residueRes.json()
+          if (data.success && data.data) {
+            const chartData = data.data.reverse().map((reading: any) => ({
+              time: new Date(reading.timestamp).toLocaleTimeString(),
+              value: reading.average_distance || 0,
+              fullTimestamp: new Date(reading.timestamp).toLocaleString()
+            }))
+            setResidueChartData(chartData)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching historical data:', error)
+      }
+    }
+
+    fetchHistoricalData()
+    // Refresh historical data every 30 seconds
+    const interval = setInterval(fetchHistoricalData, 30000)
+    return () => clearInterval(interval)
+  }, [mqttTopic])
 
   useEffect(() => {
     if (!mqttTopic) return
@@ -110,7 +177,8 @@ export default function ConditionPage({ params }: PageProps) {
           }
 
           // Update based on bin type
-          const binType = message.binType || 'organic' // Default ke organic
+          // Force all incoming data to anorganic bin
+          const binType = 'anorganic'
 
           if (binType === 'organic') {
             setOrganicSensors(sensors)
@@ -163,13 +231,22 @@ export default function ConditionPage({ params }: PageProps) {
             ==================================== */}
         <div className="mb-4 sm:mb-6 md:mb-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 mb-3 sm:mb-4">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="text-xs sm:text-sm font-medium">Back</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => router.back()}
+                className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-xs sm:text-sm font-medium">Back</span>
+              </button>
+              <button
+                onClick={() => router.push('/database-readings')}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                <Database className="w-4 h-4" />
+                <span className="text-xs sm:text-sm font-medium">View DB</span>
+              </button>
+            </div>
             <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-gray-900 break-words">
               🗑️ {binName}
             </h1>
@@ -202,32 +279,46 @@ export default function ConditionPage({ params }: PageProps) {
             WEIGHT DISPLAY CARDS
             ==================================== */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6">
-          {/* Organic Weight */}
-          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-3 sm:p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <h3 className="text-xs sm:text-sm font-semibold text-green-700 mb-1">🌱 Organic</h3>
-                <p className="text-xl sm:text-2xl font-bold text-green-900">
-                  {organicSensors?.weight ? `${(organicSensors.weight / 1000).toFixed(2)} kg` : '--'}
-                </p>
-                <p className="text-xs text-green-600 mt-0.5">
-                  {organicSensors?.weight ? `${organicSensors.weight}g` : 'No data'}
-                </p>
-              </div>
-              <div className="text-2xl sm:text-3xl md:text-4xl">⚖️</div>
-            </div>
-          </div>
-
           {/* Anorganic Weight */}
           <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <h3 className="text-xs sm:text-sm font-semibold text-blue-700 mb-1">♻️ Anorganic</h3>
                 <p className="text-xl sm:text-2xl font-bold text-blue-900">
-                  {anorganicSensors?.weight ? `${(anorganicSensors.weight / 1000).toFixed(2)} kg` : '--'}
+                  {anorganicSensors?.weight ? `${anorganicSensors.weight.toFixed(2)} kg` : '--'}
                 </p>
                 <p className="text-xs text-blue-600 mt-0.5">
-                  {anorganicSensors?.weight ? `${anorganicSensors.weight}g` : 'No data'}
+                  {anorganicSensors?.weight && anorganicHistory.length >= 2 ?
+                    (() => {
+                      const previousWeight = anorganicHistory[anorganicHistory.length - 2]?.weight || 0
+                      const diff = anorganicSensors.weight - previousWeight
+                      const sign = diff >= 0 ? '+' : ''
+                      return `${sign}${diff.toFixed(2)} kg`
+                    })()
+                    : 'No previous data'}
+                </p>
+              </div>
+              <div className="text-2xl sm:text-3xl md:text-4xl">⚖️</div>
+            </div>
+          </div>
+
+          {/* Organic Weight */}
+          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-3 sm:p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <h3 className="text-xs sm:text-sm font-semibold text-green-700 mb-1">🌱 Organic</h3>
+                <p className="text-xl sm:text-2xl font-bold text-green-900">
+                  {organicSensors?.weight ? `${organicSensors.weight.toFixed(2)} kg` : '--'}
+                </p>
+                <p className="text-xs text-green-600 mt-0.5">
+                  {organicSensors?.weight && organicHistory.length >= 2 ?
+                    (() => {
+                      const previousWeight = organicHistory[organicHistory.length - 2]?.weight || 0
+                      const diff = organicSensors.weight - previousWeight
+                      const sign = diff >= 0 ? '+' : ''
+                      return `${sign}${diff.toFixed(2)} kg`
+                    })()
+                    : 'No previous data'}
                 </p>
               </div>
               <div className="text-2xl sm:text-3xl md:text-4xl">⚖️</div>
@@ -240,10 +331,17 @@ export default function ConditionPage({ params }: PageProps) {
               <div className="flex-1">
                 <h3 className="text-xs sm:text-sm font-semibold text-orange-700 mb-1">🗑️ Residue</h3>
                 <p className="text-xl sm:text-2xl font-bold text-orange-900">
-                  {residueSensors?.weight ? `${(residueSensors.weight / 1000).toFixed(2)} kg` : '--'}
+                  {residueSensors?.weight ? `${residueSensors.weight.toFixed(2)} kg` : '--'}
                 </p>
                 <p className="text-xs text-orange-600 mt-0.5">
-                  {residueSensors?.weight ? `${residueSensors.weight}g` : 'No data'}
+                  {residueSensors?.weight && residueHistory.length >= 2 ?
+                    (() => {
+                      const previousWeight = residueHistory[residueHistory.length - 2]?.weight || 0
+                      const diff = residueSensors.weight - previousWeight
+                      const sign = diff >= 0 ? '+' : ''
+                      return `${sign}${diff.toFixed(2)} kg`
+                    })()
+                    : 'No previous data'}
                 </p>
               </div>
               <div className="text-2xl sm:text-3xl md:text-4xl">⚖️</div>
@@ -252,43 +350,78 @@ export default function ConditionPage({ params }: PageProps) {
         </div>
 
         {/* ====================================
-            3 VISUALISASI 3D UNTUK 3 BIN
+            3 VISUALISASI 3D UNTUK 3 BIN + CHARTS
             ==================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-6 md:mb-8">
-          <Bin3DVisualization
-            binType="organic"
-            sensorData={organicSensors}
-          />
-          <Bin3DVisualization
-            binType="anorganic"
-            sensorData={anorganicSensors}
-          />
-          <Bin3DVisualization
-            binType="residue"
-            sensorData={residueSensors}
-          />
-        </div>
-
-        {/* DATA HISTORY */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6 md:mb-8">
-          {/* Organic History */}
-          <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-            <h3 className="text-xs sm:text-sm font-semibold text-green-600 mb-2">🌱 Organic History</h3>
-            <div className="text-xs text-gray-500 space-y-1 max-h-32 sm:max-h-40 overflow-y-auto">
-              {organicHistory.length === 0 ? (
-                <p className="text-orange-500">No data yet</p>
+          {/* Anorganic Bin */}
+          <div className="flex flex-col gap-3 sm:gap-4">
+            <Bin3DVisualization
+              binType="anorganic"
+              sensorData={anorganicSensors}
+            />
+            <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+              <h3 className="text-xs sm:text-sm font-semibold text-blue-600 mb-2">Anorganic Distance Chart</h3>
+              {anorganicChartData.length > 0 ? (
+                <ChartComponent
+                  data={anorganicChartData}
+                  bgColor="bg-blue-100"
+                  height={150}
+                />
               ) : (
-                organicHistory.slice(-5).reverse().map((entry, idx) => (
-                  <div key={idx} className="border-b pb-1">
-                    <div className="font-semibold">{entry.timestamp}</div>
-                    <div>Avg: {entry.average}cm | Weight: {(entry.weight / 1000).toFixed(2)}kg</div>
-                    <div className="text-gray-400">Sensors: [{entry.sensors.topLeft}, {entry.sensors.topRight}, {entry.sensors.bottomLeft}, {entry.sensors.bottomRight}]</div>
-                  </div>
-                ))
+                <div className="bg-blue-50 rounded-lg p-4 text-center text-sm text-gray-500">
+                  No historical data available
+                </div>
               )}
             </div>
           </div>
 
+          {/* Organic Bin */}
+          <div className="flex flex-col gap-3 sm:gap-4">
+            <Bin3DVisualization
+              binType="organic"
+              sensorData={organicSensors}
+            />
+            <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+              <h3 className="text-xs sm:text-sm font-semibold text-green-600 mb-2">Organic Distance Chart</h3>
+              {organicChartData.length > 0 ? (
+                <ChartComponent
+                  data={organicChartData}
+                  bgColor="bg-green-100"
+                  height={150}
+                />
+              ) : (
+                <div className="bg-green-50 rounded-lg p-4 text-center text-sm text-gray-500">
+                  No historical data available
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Residue Bin */}
+          <div className="flex flex-col gap-3 sm:gap-4">
+            <Bin3DVisualization
+              binType="residue"
+              sensorData={residueSensors}
+            />
+            <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+              <h3 className="text-xs sm:text-sm font-semibold text-orange-600 mb-2">Residue Distance Chart</h3>
+              {residueChartData.length > 0 ? (
+                <ChartComponent
+                  data={residueChartData}
+                  bgColor="bg-orange-100"
+                  height={150}
+                />
+              ) : (
+                <div className="bg-orange-50 rounded-lg p-4 text-center text-sm text-gray-500">
+                  No historical data available
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* DATA HISTORY */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6 md:mb-8">
           {/* Anorganic History */}
           <div className="bg-white rounded-lg shadow p-3 sm:p-4">
             <h3 className="text-xs sm:text-sm font-semibold text-blue-600 mb-2">♻️ Anorganic History</h3>
@@ -299,7 +432,25 @@ export default function ConditionPage({ params }: PageProps) {
                 anorganicHistory.slice(-5).reverse().map((entry, idx) => (
                   <div key={idx} className="border-b pb-1">
                     <div className="font-semibold">{entry.timestamp}</div>
-                    <div>Avg: {entry.average}cm | Weight: {(entry.weight / 1000).toFixed(2)}kg</div>
+                    <div>Avg: {entry.average}cm | Weight: {entry.weight.toFixed(2)}kg</div>
+                    <div className="text-gray-400">Sensors: [{entry.sensors.topLeft}, {entry.sensors.topRight}, {entry.sensors.bottomLeft}, {entry.sensors.bottomRight}]</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Organic History */}
+          <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+            <h3 className="text-xs sm:text-sm font-semibold text-green-600 mb-2">🌱 Organic History</h3>
+            <div className="text-xs text-gray-500 space-y-1 max-h-32 sm:max-h-40 overflow-y-auto">
+              {organicHistory.length === 0 ? (
+                <p className="text-orange-500">No data yet</p>
+              ) : (
+                organicHistory.slice(-5).reverse().map((entry, idx) => (
+                  <div key={idx} className="border-b pb-1">
+                    <div className="font-semibold">{entry.timestamp}</div>
+                    <div>Avg: {entry.average}cm | Weight: {entry.weight.toFixed(2)}kg</div>
                     <div className="text-gray-400">Sensors: [{entry.sensors.topLeft}, {entry.sensors.topRight}, {entry.sensors.bottomLeft}, {entry.sensors.bottomRight}]</div>
                   </div>
                 ))
@@ -317,7 +468,7 @@ export default function ConditionPage({ params }: PageProps) {
                 residueHistory.slice(-5).reverse().map((entry, idx) => (
                   <div key={idx} className="border-b pb-1">
                     <div className="font-semibold">{entry.timestamp}</div>
-                    <div>Avg: {entry.average}cm | Weight: {(entry.weight / 1000).toFixed(2)}kg</div>
+                    <div>Avg: {entry.average}cm | Weight: {entry.weight.toFixed(2)}kg</div>
                     <div className="text-gray-400">Sensors: [{entry.sensors.topLeft}, {entry.sensors.topRight}, {entry.sensors.bottomLeft}, {entry.sensors.bottomRight}]</div>
                   </div>
                 ))
@@ -335,8 +486,8 @@ export default function ConditionPage({ params }: PageProps) {
               <ul className="text-xs sm:text-sm text-gray-700 space-y-0.5 sm:space-y-1">
                 <li className="break-words">• Bin: <strong className="break-all">{binName}</strong></li>
                 <li className="break-words">• Topic: <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">{mqttTopic}</code></li>
-                <li className="break-words">• Showing: <strong>Organic</strong> (4 sensors + weight)</li>
-                <li>• Weight in grams</li>
+                <li className="break-words">• Showing: <strong>Anorganic</strong> (4 sensors + weight)</li>
+                <li>• Weight in kilograms</li>
               </ul>
             </div>
             <div>
