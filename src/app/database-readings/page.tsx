@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, RefreshCw, Database } from 'lucide-react'
 
@@ -49,7 +49,7 @@ export default function DatabaseReadingsPage() {
   }, [])
 
   // Fetch readings
-  const fetchReadings = async () => {
+  const fetchReadings = useCallback(async () => {
     setLoading(true)
     setError(null)
 
@@ -83,11 +83,11 @@ export default function DatabaseReadingsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedLocation, selectedBinType])
 
   useEffect(() => {
     fetchReadings()
-  }, [selectedLocation, selectedBinType])
+  }, [fetchReadings])
 
   const formatDate = (timestamp: string) => {
     const date = new Date(timestamp)

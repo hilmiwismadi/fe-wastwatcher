@@ -29,6 +29,12 @@ interface BinDataHistory {
   weight: number // Weight in kilograms
 }
 
+// API Response type for sensor readings
+interface SensorReading {
+  timestamp: string
+  average_distance: number
+}
+
 interface PageProps {
   params: Promise<{
     slug: string;
@@ -89,7 +95,7 @@ export default function ConditionPage({ params }: PageProps) {
         if (organicRes.ok) {
           const data = await organicRes.json()
           if (data.success && data.data) {
-            const chartData = data.data.reverse().map((reading: any) => ({
+            const chartData = data.data.reverse().map((reading: SensorReading) => ({
               time: new Date(reading.timestamp).toLocaleTimeString(),
               value: reading.average_distance || 0,
               fullTimestamp: new Date(reading.timestamp).toLocaleString()
@@ -101,7 +107,7 @@ export default function ConditionPage({ params }: PageProps) {
         if (anorganicRes.ok) {
           const data = await anorganicRes.json()
           if (data.success && data.data) {
-            const chartData = data.data.reverse().map((reading: any) => ({
+            const chartData = data.data.reverse().map((reading: SensorReading) => ({
               time: new Date(reading.timestamp).toLocaleTimeString(),
               value: reading.average_distance || 0,
               fullTimestamp: new Date(reading.timestamp).toLocaleString()
@@ -113,7 +119,7 @@ export default function ConditionPage({ params }: PageProps) {
         if (residueRes.ok) {
           const data = await residueRes.json()
           if (data.success && data.data) {
-            const chartData = data.data.reverse().map((reading: any) => ({
+            const chartData = data.data.reverse().map((reading: SensorReading) => ({
               time: new Date(reading.timestamp).toLocaleTimeString(),
               value: reading.average_distance || 0,
               fullTimestamp: new Date(reading.timestamp).toLocaleString()
@@ -177,8 +183,8 @@ export default function ConditionPage({ params }: PageProps) {
           }
 
           // Update based on bin type
-          // Force all incoming data to anorganic bin
-          const binType = 'anorganic'
+          // Default to anorganic if binType not specified in message
+          const binType = (message.binType || 'anorganic') as 'organic' | 'anorganic' | 'residue'
 
           if (binType === 'organic') {
             setOrganicSensors(sensors)

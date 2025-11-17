@@ -28,7 +28,6 @@ import {
   kantinResidueData,
   getKantinHourlyData,
   getKantinHourData,
-  getKantinDailyData,
   getKantinWeeklyData,
   getKantinMonthlyData,
   kantinCurrentStatus

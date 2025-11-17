@@ -63,8 +63,7 @@ export default function InteractiveMapVisualization() {
   const [animating, setAnimating] = useState(false);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [strategy, setStrategy] = useState<'shortest' | 'patrol'>('shortest');
-  const [_algorithm, _setAlgorithm] = useState<'astar' | 'dijkstra'>('astar');
-  const [mode, _setMode] = useState<'drag' | 'block' | 'select'>('drag');
+  const [mode] = useState<'drag' | 'block' | 'select'>('drag');
   const [selectedPoints, setSelectedPoints] = useState<Position[]>([]);
   const [customBlocked, setCustomBlocked] = useState<Position[]>([]);
   const [speed, setSpeed] = useState<1 | 2 | 4 | 8 | 16>(1);
@@ -494,8 +493,7 @@ export default function InteractiveMapVisualization() {
       const start = route[i];
       const end = route[i + 1];
 
-      // Get bins and blocked grid for current floor (bins should be blocked)
-      const _floorData = allFloorsBins[start.floor];
+      // Get blocked grid for current floor (bins should be blocked)
       const floorBlocked = initializeFloor(start.floor).blocked;
 
       // If transitioning between floors, just add lift positions

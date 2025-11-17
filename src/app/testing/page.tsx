@@ -142,51 +142,6 @@ export default function TestingPage() {
     }
   }, [])
 
-  const startSimulation = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/test/start-simulation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-      const result = await response.json()
-      console.log('Simulation started:', result.message)
-    } catch (error) {
-      console.error('Error starting simulation:', error)
-    }
-  }
-
-  const stopSimulation = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/test/stop-simulation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-      const result = await response.json()
-      console.log('Simulation stopped:', result.message)
-    } catch (error) {
-      console.error('Error stopping simulation:', error)
-    }
-  }
-
-  const sendTestData = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/test/simulate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-      const result = await response.json()
-      console.log('Test data sent:', result.message)
-    } catch (error) {
-      console.error('Error sending test data:', error)
-    }
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
