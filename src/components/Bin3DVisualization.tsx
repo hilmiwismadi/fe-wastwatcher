@@ -63,10 +63,10 @@ export default function Bin3DVisualization({
   // Sensor is mounted ABOVE the bin, so distance includes air gap + bin content
   const distanceToWasteHeight = (distance: number, sensorPosition: 'TL' | 'TR' | 'BL' | 'BR'): number => {
     const baseline = (sensorPosition === 'TL' || sensorPosition === 'TR') ? 9 : 6
-    // When at baseline (lid closed): height = 60cm (full bin)
-    // When distance increases: waste decreases
-    // wasteHeight = 60 - (distance - baseline)
-    const wasteHeight = BIN_HEIGHT - (distance - baseline)
+    // When at baseline (lid closed/full bin): height = 60cm (full bin)
+    // When at baseline + BIN_HEIGHT (empty bin): height = 0cm (empty)
+    // wasteHeight = (baseline + BIN_HEIGHT) - distance
+    const wasteHeight = (baseline + BIN_HEIGHT) - distance
     return Math.max(0, Math.min(BIN_HEIGHT, wasteHeight))
   }
 
@@ -92,8 +92,9 @@ export default function Bin3DVisualization({
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    // Default values jika tidak ada data (60cm when lid is closed)
-    const sensors = sensorData || { topLeft: 60, topRight: 60, bottomLeft: 60, bottomRight: 60 }
+    // Default values jika tidak ada data (empty bin = baseline + BIN_HEIGHT)
+    // TL/TR: 9 + 60 = 69cm, BL/BR: 6 + 60 = 66cm
+    const sensors = sensorData || { topLeft: 69, topRight: 69, bottomLeft: 66, bottomRight: 66 }
 
     // Konversi distance ke tinggi sampah (dalam cm)
     // SWAPPED: Top row shows bottom data, Bottom row shows top data (swapped left-right)
