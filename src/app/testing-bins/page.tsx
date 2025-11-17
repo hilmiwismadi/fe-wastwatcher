@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 
+// API Configuration
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+
 interface WasteBinData {
   timestamp: string
   volume: number
@@ -25,7 +28,7 @@ export default function TestingBinsPage() {
     const fetchData = async () => {
       try {
         console.log('🔄 Attempting to fetch from backend...')
-        const response = await fetch('http://localhost:5000/api/waste-bins', {
+        const response = await fetch(`${API_URL}/api/waste-bins`, {
           mode: 'cors',
           headers: {
             'Content-Type': 'application/json',
@@ -74,7 +77,7 @@ export default function TestingBinsPage() {
 
       for (const item of testData) {
         // Simulate MQTT message received
-        const response = await fetch('http://localhost:5000/api/test/mqtt-simulate', {
+        const response = await fetch(`${API_URL}/api/test/mqtt-simulate`, {
           method: 'POST',
           mode: 'cors',
           headers: {

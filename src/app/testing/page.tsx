@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react'
 import Bin3DVisualization from '@/components/Bin3DVisualization'
 
+// API Configuration
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+const WS_URL = API_URL.replace('https://', 'wss://').replace('http://', 'ws://')
+
 // ====================================
 // INTERFACE UNTUK FORMAT DATA BARU
 // ====================================
@@ -42,7 +46,7 @@ export default function TestingPage() {
 
   useEffect(() => {
     // Initialize WebSocket connection
-    const ws = new WebSocket('ws://localhost:5000/ws')
+    const ws = new WebSocket(`${WS_URL}/ws`)
 
     ws.onopen = () => {
       setIsConnected(true)
@@ -333,7 +337,10 @@ export default function TestingPage() {
               <strong>MQTT Broker:</strong> <code className="bg-white px-2 py-1 rounded text-xs">mqtt://test.mosquitto.org:1883</code>
             </p>
             <p className="text-sm text-gray-600 mt-1">
-              <strong>WebSocket:</strong> <code className="bg-white px-2 py-1 rounded text-xs">ws://localhost:5000/ws</code>
+              <strong>WebSocket:</strong> <code className="bg-white px-2 py-1 rounded text-xs">{WS_URL}/ws</code>
+            </p>
+            <p className="text-sm text-gray-600 mt-1">
+              <strong>API URL:</strong> <code className="bg-white px-2 py-1 rounded text-xs">{API_URL}</code>
             </p>
           </div>
         </div>

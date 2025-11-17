@@ -6,6 +6,9 @@ import { ArrowLeft, RefreshCw, Database } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
+// API Configuration
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+
 interface SensorReading {
   id: number
   location: string
@@ -33,7 +36,7 @@ export default function DatabaseReadingsPage() {
   useEffect(() => {
     const fetchLocations = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/sensors/locations')
+        const response = await fetch(`${API_URL}/api/sensors/locations`)
         if (response.ok) {
           const data = await response.json()
           if (data.success && data.data) {
@@ -54,11 +57,11 @@ export default function DatabaseReadingsPage() {
     setError(null)
 
     try {
-      let url = 'http://localhost:5000/api/sensors/readings/all?limit=100'
+      let url = `${API_URL}/api/sensors/readings/all?limit=100`
 
       // If a specific location is selected
       if (selectedLocation !== 'all') {
-        url = `http://localhost:5000/api/sensors/readings/${selectedLocation}?limit=100`
+        url = `${API_URL}/api/sensors/readings/${selectedLocation}?limit=100`
         if (selectedBinType !== 'all') {
           url += `&binType=${selectedBinType}`
         }

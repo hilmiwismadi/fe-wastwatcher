@@ -9,6 +9,10 @@ import { binSlugToMqttTopic, binSlugMapping } from '@/data/mockData'
 
 export const dynamic = 'force-dynamic'
 
+// API Configuration
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+const WS_URL = API_URL.replace('https://', 'wss://').replace('http://', 'ws://')
+
 // ====================================
 // INTERFACE UNTUK FORMAT DATA BARU
 // ====================================
@@ -87,9 +91,9 @@ export default function ConditionPage({ params }: PageProps) {
       try {
         // Fetch data for each bin type
         const [organicRes, anorganicRes, residueRes] = await Promise.all([
-          fetch(`http://localhost:5000/api/sensors/readings/${locationName}?binType=organic&limit=20`),
-          fetch(`http://localhost:5000/api/sensors/readings/${locationName}?binType=anorganic&limit=20`),
-          fetch(`http://localhost:5000/api/sensors/readings/${locationName}?binType=residue&limit=20`)
+          fetch(`${API_URL}/api/sensors/readings/${locationName}?binType=organic&limit=20`),
+          fetch(`${API_URL}/api/sensors/readings/${locationName}?binType=anorganic&limit=20`),
+          fetch(`${API_URL}/api/sensors/readings/${locationName}?binType=residue&limit=20`)
         ])
 
         if (organicRes.ok) {
@@ -142,7 +146,7 @@ export default function ConditionPage({ params }: PageProps) {
     if (!mqttTopic) return
 
     // Initialize WebSocket connection
-    const ws = new WebSocket('ws://localhost:5000/ws')
+    const ws = new WebSocket(`${WS_URL}/ws`)
 
     ws.onopen = () => {
       setIsConnected(true)
@@ -511,7 +515,10 @@ export default function ConditionPage({ params }: PageProps) {
               <strong>MQTT:</strong> <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">test.mosquitto.org:1883</code>
             </p>
             <p className="text-xs sm:text-sm text-gray-600 mt-1 break-words">
-              <strong>WebSocket:</strong> <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">ws://localhost:5000/ws</code>
+              <strong>WebSocket:</strong> <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">{WS_URL}/ws</code>
+            </p>
+            <p className="text-xs sm:text-sm text-gray-600 mt-1 break-words">
+              <strong>API URL:</strong> <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">{API_URL}</code>
             </p>
           </div>
         </div>

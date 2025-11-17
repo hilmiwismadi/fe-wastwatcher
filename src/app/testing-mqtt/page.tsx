@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
+// API Configuration
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+
 interface SensorData {
   timestamp: string
   value: number
@@ -17,7 +20,7 @@ export default function TestingMQTTPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/sensor/data')
+        const response = await fetch(`${API_URL}/api/sensor/data`)
         if (response.ok) {
           const result = await response.json()
 
@@ -55,7 +58,7 @@ export default function TestingMQTTPage() {
 
   const startSimulation = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/test/start-simulation', {
+      const response = await fetch(`${API_URL}/api/test/start-simulation`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -70,7 +73,7 @@ export default function TestingMQTTPage() {
 
   const stopSimulation = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/test/stop-simulation', {
+      const response = await fetch(`${API_URL}/api/test/stop-simulation`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -85,7 +88,7 @@ export default function TestingMQTTPage() {
 
   const sendTestData = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/test/simulate', {
+      const response = await fetch(`${API_URL}/api/test/simulate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
