@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ChevronDown, AlertCircle } from "lucide-react";
+import { Search, ChevronDown, AlertCircle, Map as MapIcon } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { ToggleButton } from "./ToggleButton";
 import { BarChart } from "./BarChart";
@@ -480,6 +480,15 @@ const MonitoringPage = () => {
                   )}
                 </div>
               </div>
+
+              {/* Map View Button */}
+              <button
+                onClick={() => router.push('/map')}
+                className="w-full px-2.5 sm:px-3 py-2 sm:py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg"
+              >
+                <MapIcon size={16} />
+                <span>Lihat Peta Interaktif</span>
+              </button>
             </div>
           </div>
 
