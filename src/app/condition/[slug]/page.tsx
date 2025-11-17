@@ -286,111 +286,43 @@ export default function ConditionPage({ params }: PageProps) {
         </div>
 
         {/* ====================================
-            WEIGHT DISPLAY CARDS
-            ==================================== */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6">
-          {/* Anorganic Weight */}
-          <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-3 sm:p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <h3 className="text-xs sm:text-sm font-semibold text-blue-700 mb-1">♻️ Anorganic</h3>
-                <p className="text-xl sm:text-2xl font-bold text-blue-900">
-                  {anorganicSensors?.weight ? `${anorganicSensors.weight.toFixed(2)} kg` : '--'}
-                </p>
-                <p className="text-xs text-blue-600 mt-0.5">
-                  {anorganicSensors?.weight && anorganicHistory.length >= 2 ?
-                    (() => {
-                      const previousWeight = anorganicHistory[anorganicHistory.length - 2]?.weight || 0
-                      const diff = anorganicSensors.weight - previousWeight
-                      const sign = diff >= 0 ? '+' : ''
-                      return `${sign}${diff.toFixed(2)} kg`
-                    })()
-                    : 'No previous data'}
-                </p>
-              </div>
-              <div className="text-2xl sm:text-3xl md:text-4xl">⚖️</div>
-            </div>
-          </div>
-
-          {/* Organic Weight */}
-          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-3 sm:p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <h3 className="text-xs sm:text-sm font-semibold text-green-700 mb-1">🌱 Organic</h3>
-                <p className="text-xl sm:text-2xl font-bold text-green-900">
-                  {organicSensors?.weight ? `${organicSensors.weight.toFixed(2)} kg` : '--'}
-                </p>
-                <p className="text-xs text-green-600 mt-0.5">
-                  {organicSensors?.weight && organicHistory.length >= 2 ?
-                    (() => {
-                      const previousWeight = organicHistory[organicHistory.length - 2]?.weight || 0
-                      const diff = organicSensors.weight - previousWeight
-                      const sign = diff >= 0 ? '+' : ''
-                      return `${sign}${diff.toFixed(2)} kg`
-                    })()
-                    : 'No previous data'}
-                </p>
-              </div>
-              <div className="text-2xl sm:text-3xl md:text-4xl">⚖️</div>
-            </div>
-          </div>
-
-          {/* Residue Weight */}
-          <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-3 sm:p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <h3 className="text-xs sm:text-sm font-semibold text-orange-700 mb-1">🗑️ Residue</h3>
-                <p className="text-xl sm:text-2xl font-bold text-orange-900">
-                  {residueSensors?.weight ? `${residueSensors.weight.toFixed(2)} kg` : '--'}
-                </p>
-                <p className="text-xs text-orange-600 mt-0.5">
-                  {residueSensors?.weight && residueHistory.length >= 2 ?
-                    (() => {
-                      const previousWeight = residueHistory[residueHistory.length - 2]?.weight || 0
-                      const diff = residueSensors.weight - previousWeight
-                      const sign = diff >= 0 ? '+' : ''
-                      return `${sign}${diff.toFixed(2)} kg`
-                    })()
-                    : 'No previous data'}
-                </p>
-              </div>
-              <div className="text-2xl sm:text-3xl md:text-4xl">⚖️</div>
-            </div>
-          </div>
-        </div>
-
-        {/* ====================================
-            3 VISUALISASI 3D UNTUK 3 BIN + CHARTS
+            WASTE TYPE SECTIONS (Weight + 3D Visualization)
+            On mobile: Organic → Anorganic → Residue
+            On desktop: Side by side
             ==================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-6 md:mb-8">
-          {/* Anorganic Bin */}
+          {/* Organic Section */}
           <div className="flex flex-col gap-3 sm:gap-4">
-            <Bin3DVisualization
-              binType="anorganic"
-              sensorData={anorganicSensors}
-            />
-            <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-              <h3 className="text-xs sm:text-sm font-semibold text-blue-600 mb-2">Anorganic Distance Chart</h3>
-              {anorganicChartData.length > 0 ? (
-                <ChartComponent
-                  data={anorganicChartData}
-                  bgColor="bg-blue-100"
-                  height={150}
-                />
-              ) : (
-                <div className="bg-blue-50 rounded-lg p-4 text-center text-sm text-gray-500">
-                  No historical data available
+            {/* Organic Weight */}
+            <div className="bg-green-50 border-2 border-green-300 rounded-lg p-3 sm:p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <h3 className="text-xs sm:text-sm font-semibold text-green-700 mb-1">🌱 Organic</h3>
+                  <p className="text-xl sm:text-2xl font-bold text-green-900">
+                    {organicSensors?.weight ? `${organicSensors.weight.toFixed(2)} kg` : '--'}
+                  </p>
+                  <p className="text-xs text-green-600 mt-0.5">
+                    {organicSensors?.weight && organicHistory.length >= 2 ?
+                      (() => {
+                        const previousWeight = organicHistory[organicHistory.length - 2]?.weight || 0
+                        const diff = organicSensors.weight - previousWeight
+                        const sign = diff >= 0 ? '+' : ''
+                        return `${sign}${diff.toFixed(2)} kg`
+                      })()
+                      : 'No previous data'}
+                  </p>
                 </div>
-              )}
+                <div className="text-2xl sm:text-3xl md:text-4xl">⚖️</div>
+              </div>
             </div>
-          </div>
 
-          {/* Organic Bin */}
-          <div className="flex flex-col gap-3 sm:gap-4">
+            {/* Organic 3D Visualization */}
             <Bin3DVisualization
               binType="organic"
               sensorData={organicSensors}
             />
+
+            {/* Organic Chart */}
             <div className="bg-white rounded-lg shadow p-3 sm:p-4">
               <h3 className="text-xs sm:text-sm font-semibold text-green-600 mb-2">Organic Distance Chart</h3>
               {organicChartData.length > 0 ? (
@@ -407,12 +339,86 @@ export default function ConditionPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* Residue Bin */}
+          {/* Anorganic Section */}
           <div className="flex flex-col gap-3 sm:gap-4">
+            {/* Anorganic Weight */}
+            <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-3 sm:p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <h3 className="text-xs sm:text-sm font-semibold text-blue-700 mb-1">♻️ Anorganic</h3>
+                  <p className="text-xl sm:text-2xl font-bold text-blue-900">
+                    {anorganicSensors?.weight ? `${anorganicSensors.weight.toFixed(2)} kg` : '--'}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-0.5">
+                    {anorganicSensors?.weight && anorganicHistory.length >= 2 ?
+                      (() => {
+                        const previousWeight = anorganicHistory[anorganicHistory.length - 2]?.weight || 0
+                        const diff = anorganicSensors.weight - previousWeight
+                        const sign = diff >= 0 ? '+' : ''
+                        return `${sign}${diff.toFixed(2)} kg`
+                      })()
+                      : 'No previous data'}
+                  </p>
+                </div>
+                <div className="text-2xl sm:text-3xl md:text-4xl">⚖️</div>
+              </div>
+            </div>
+
+            {/* Anorganic 3D Visualization */}
+            <Bin3DVisualization
+              binType="anorganic"
+              sensorData={anorganicSensors}
+            />
+
+            {/* Anorganic Chart */}
+            <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+              <h3 className="text-xs sm:text-sm font-semibold text-blue-600 mb-2">Anorganic Distance Chart</h3>
+              {anorganicChartData.length > 0 ? (
+                <ChartComponent
+                  data={anorganicChartData}
+                  bgColor="bg-blue-100"
+                  height={150}
+                />
+              ) : (
+                <div className="bg-blue-50 rounded-lg p-4 text-center text-sm text-gray-500">
+                  No historical data available
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Residue Section */}
+          <div className="flex flex-col gap-3 sm:gap-4">
+            {/* Residue Weight */}
+            <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-3 sm:p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <h3 className="text-xs sm:text-sm font-semibold text-orange-700 mb-1">🗑️ Residue</h3>
+                  <p className="text-xl sm:text-2xl font-bold text-orange-900">
+                    {residueSensors?.weight ? `${residueSensors.weight.toFixed(2)} kg` : '--'}
+                  </p>
+                  <p className="text-xs text-orange-600 mt-0.5">
+                    {residueSensors?.weight && residueHistory.length >= 2 ?
+                      (() => {
+                        const previousWeight = residueHistory[residueHistory.length - 2]?.weight || 0
+                        const diff = residueSensors.weight - previousWeight
+                        const sign = diff >= 0 ? '+' : ''
+                        return `${sign}${diff.toFixed(2)} kg`
+                      })()
+                      : 'No previous data'}
+                  </p>
+                </div>
+                <div className="text-2xl sm:text-3xl md:text-4xl">⚖️</div>
+              </div>
+            </div>
+
+            {/* Residue 3D Visualization */}
             <Bin3DVisualization
               binType="residue"
               sensorData={residueSensors}
             />
+
+            {/* Residue Chart */}
             <div className="bg-white rounded-lg shadow p-3 sm:p-4">
               <h3 className="text-xs sm:text-sm font-semibold text-orange-600 mb-2">Residue Distance Chart</h3>
               {residueChartData.length > 0 ? (

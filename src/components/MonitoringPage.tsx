@@ -184,9 +184,9 @@ const MonitoringPage = () => {
   // Status options
   const statusOptions = ["Kosong", "Menengah", "Hampir Penuh", "Penuh"];
 
-  // Filter bins
+  // Filter and sort bins
   const filteredBins = useMemo(() => {
-    return bins.filter(bin => {
+    const filtered = bins.filter(bin => {
       const matchesSearch = bin.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            bin.location.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -197,6 +197,18 @@ const MonitoringPage = () => {
                            selectedStatuses.includes(getStatusCategory(bin.max_percentage));
 
       return matchesSearch && matchesFloor && matchesStatus;
+    });
+
+    // Sort: prioritize "Kantin LT 1" to appear first
+    return filtered.sort((a, b) => {
+      const aIsKantin = a.name.toLowerCase().includes('kantin lt 1') ||
+                        a.location.toLowerCase().includes('kantin lt 1');
+      const bIsKantin = b.name.toLowerCase().includes('kantin lt 1') ||
+                        b.location.toLowerCase().includes('kantin lt 1');
+
+      if (aIsKantin && !bIsKantin) return -1;
+      if (!aIsKantin && bIsKantin) return 1;
+      return 0;
     });
   }, [bins, searchQuery, selectedFloors, selectedStatuses]);
 
@@ -484,10 +496,10 @@ const MonitoringPage = () => {
               {/* Map View Button */}
               <button
                 onClick={() => router.push('/map')}
-                className="w-full px-2.5 sm:px-3 py-2 sm:py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg"
+                className="w-full px-2.5 sm:px-3 py-2 sm:py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg text-xs sm:text-sm font-semibold flex items-center my-5 justify-center gap-2 transition-all shadow-md hover:shadow-lg"
               >
                 <MapIcon size={16} />
-                <span>Lihat Peta Interaktif</span>
+                <span>Simulasi Pengambilan Peta Interaktif</span>
               </button>
             </div>
           </div>
