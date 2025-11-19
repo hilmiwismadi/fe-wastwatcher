@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { ArrowLeft, Save, Table as TableIcon, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Bin3DVisualization from '@/components/Bin3DVisualization';
@@ -82,9 +82,8 @@ const ThreeDVisualizationDashboard: React.FC = () => {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState('');
 
-  // Memoize current data so it doesn't regenerate on every render
-  const [currentDataKey, setCurrentDataKey] = useState(0);
-  const currentData = useMemo(() => generate3DData(), [currentDataKey]);
+  // State for current data
+  const [currentData, setCurrentData] = useState<ThreeDData>(() => generate3DData());
 
   useEffect(() => {
     setIsMounted(true);
@@ -117,7 +116,7 @@ const ThreeDVisualizationDashboard: React.FC = () => {
 
   // Handler to generate new randomization
   const handleNewRandomization = () => {
-    setCurrentDataKey(prev => prev + 1);
+    setCurrentData(generate3DData());
   };
 
   // Handler to delete saved visualization
@@ -158,7 +157,7 @@ const ThreeDVisualizationDashboard: React.FC = () => {
             </div>
           </div>
           <div className="text-xs sm:text-sm text-gray-600">
-            <p>Simulated 3D bin visualization with randomized sensor data. Click "Randomize" to generate new data.</p>
+            <p>Simulated 3D bin visualization with randomized sensor data. Click &quot;Randomize&quot; to generate new data.</p>
           </div>
         </div>
 
@@ -275,7 +274,7 @@ const ThreeDVisualizationDashboard: React.FC = () => {
           <div className="mt-6 bg-white p-6 rounded-lg shadow-lg">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Saved Visualizations</h3>
             {savedVisualizations.length === 0 ? (
-              <p className="text-gray-600 text-center py-8">No saved visualizations yet. Click "Save" to save the current visualization.</p>
+              <p className="text-gray-600 text-center py-8">No saved visualizations yet. Click &quot;Save&quot; to save the current visualization.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
@@ -371,9 +370,9 @@ const ThreeDVisualizationDashboard: React.FC = () => {
             <div>
               <h4 className="font-semibold text-xs sm:text-sm text-purple-800 mb-1 sm:mb-2">How to Use</h4>
               <ul className="text-xs sm:text-sm text-gray-700 space-y-0.5 sm:space-y-1">
-                <li>• Click <strong>"Randomize"</strong> to generate new data</li>
-                <li>• Click <strong>"Save"</strong> to save current scenario</li>
-                <li>• Click <strong>"Show Table"</strong> to view saved scenarios</li>
+                <li>• Click <strong>&quot;Randomize&quot;</strong> to generate new data</li>
+                <li>• Click <strong>&quot;Save&quot;</strong> to save current scenario</li>
+                <li>• Click <strong>&quot;Show Table&quot;</strong> to view saved scenarios</li>
                 <li>• Compare different scenarios side by side</li>
                 <li>• All data is simulated for demonstration</li>
               </ul>

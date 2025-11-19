@@ -101,7 +101,7 @@ export const getRealTimeDefaultDateRange = () => {
 };
 
 // Time range types
-export type TimeRange = 'fiveMinute' | 'hourly' | 'daily' | 'weekly';
+export type TimeRange = 'minute' | 'fiveMinute' | 'hourly' | 'daily' | 'weekly';
 
 // Get date range based on time range selector (for dummy data)
 export const getTimeRangeDate = (timeRange: TimeRange) => {
@@ -109,8 +109,24 @@ export const getTimeRangeDate = (timeRange: TimeRange) => {
   const dummyEndDate = new Date(dummyRange.end);
 
   switch (timeRange) {
+    case 'minute':
+      // Current hour only (Hourly view - minute intervals) - from :00 to :59
+      // Use the latest available time from dummy data
+      const currentHourMinute = new Date(dummyEndDate);
+      const hourStartMinute = new Date(currentHourMinute);
+      hourStartMinute.setMinutes(0, 0, 0);
+      const hourEndMinute = new Date(hourStartMinute);
+      hourEndMinute.setMinutes(59, 59, 999);
+
+      return {
+        startDate: formatDateForInput(hourStartMinute),
+        endDate: formatDateForInput(hourEndMinute),
+        startTime: formatTimeForInput(hourStartMinute),
+        endTime: formatTimeForInput(hourEndMinute)
+      };
+
     case 'fiveMinute':
-      // Current hour only (Hourly view) - from :00 to :59
+      // Current hour only (5-min intervals) - from :00 to :59
       // Use the latest available time from dummy data
       const currentHour = new Date(dummyEndDate);
       const hourStart = new Date(currentHour);
@@ -170,8 +186,22 @@ export const getRealTimeRangeDate = (timeRange: TimeRange) => {
   const currentTime = formatTimeForInput(now);
 
   switch (timeRange) {
+    case 'minute':
+      // Current hour view - Full hour from :00 to :59 (minute intervals)
+      const hourStartMinute = new Date(now);
+      hourStartMinute.setMinutes(0, 0, 0);
+      const hourEndMinute = new Date(now);
+      hourEndMinute.setMinutes(59, 59, 999);
+
+      return {
+        startDate: formatDateForInput(hourStartMinute),
+        endDate: formatDateForInput(hourEndMinute),
+        startTime: formatTimeForInput(hourStartMinute),
+        endTime: formatTimeForInput(hourEndMinute)
+      };
+
     case 'fiveMinute':
-      // Current hour view - Full hour from :00 to :59
+      // Current hour view - Full hour from :00 to :59 (5-min intervals)
       const hourStart = new Date(now);
       hourStart.setMinutes(0, 0, 0);
       const hourEnd = new Date(now);

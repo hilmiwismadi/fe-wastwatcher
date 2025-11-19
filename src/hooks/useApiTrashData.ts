@@ -56,8 +56,16 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
 
       // Choose API endpoint based on timeRange
       let analyticsPromise, organicPromise, anorganicPromise, residuePromise;
-      if (timeRange === 'fiveMinute') {
-        // For "Hourly" view, show 5-minute interval data (12 points per hour, 24 hours)
+      if (timeRange === 'minute') {
+        // For "Hourly" view with minute intervals, use 5-minute data (we'll process it minute-by-minute in the chart)
+        analyticsPromise = binId
+          ? apiService.getFiveMinuteIntervalDataForBin(binId, startDate, endDate)
+          : apiService.getFiveMinuteIntervalData(undefined, undefined, startDate, endDate);
+        organicPromise = apiService.getFiveMinuteIntervalData(organicDeviceId, 'Organic', startDate, endDate);
+        anorganicPromise = apiService.getFiveMinuteIntervalData(anorganicDeviceId, 'Anorganic', startDate, endDate);
+        residuePromise = apiService.getFiveMinuteIntervalData(residueDeviceId, 'Residue', startDate, endDate);
+      } else if (timeRange === 'fiveMinute') {
+        // For 5-minute interval view (12 points per hour)
         analyticsPromise = binId
           ? apiService.getFiveMinuteIntervalDataForBin(binId, startDate, endDate)
           : apiService.getFiveMinuteIntervalData(undefined, undefined, startDate, endDate);

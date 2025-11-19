@@ -211,19 +211,18 @@ export default function ConditionPage({ params }: PageProps) {
             weight: message.data.weight || 0
           }
 
-          // Determine bin type from MQTT topic
-          const topic = message.topic || ''
+          // Determine bin type from message.binType
           let binType: 'organic' | 'anorganic' | 'residue' = 'anorganic'
 
-          if (topic.includes('/Organik')) {
+          if (message.binType === 'organic') {
             binType = 'organic'
-          } else if (topic.includes('/Anorganik')) {
+          } else if (message.binType === 'anorganic') {
             binType = 'anorganic'
-          } else if (topic.includes('/Residue')) {
+          } else if (message.binType === 'residue') {
             binType = 'residue'
           }
 
-          console.log(`📥 Message from topic: ${topic} → ${binType}`)
+          console.log(`📥 Message with binType: ${message.binType} → ${binType}`)
 
           if (binType === 'organic') {
             setOrganicSensors(sensors)

@@ -75,6 +75,12 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
   const [sensorDataOffset, setSensorDataOffset] = useState(0);
   const [hasMoreSensorData, setHasMoreSensorData] = useState(true);
 
+  // State for anorganic sensor readings (separate from organic)
+  const [anorganicSensorReadings, setAnorganicSensorReadings] = useState<SensorReading[]>([]);
+  const [anorganicSensorDataLoading, setAnorganicSensorDataLoading] = useState(false);
+  const [anorganicSensorDataOffset, setAnorganicSensorDataOffset] = useState(0);
+  const [hasMoreAnorganicSensorData, setHasMoreAnorganicSensorData] = useState(true);
+
   // State for bin data (fetched dynamically)
   const [trashBinName, setTrashBinName] = React.useState<string>('Loading...');
   const [batteryPercentage, setBatteryPercentage] = React.useState<number>(0);
@@ -157,8 +163,19 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
 
     setSensorDataLoading(true);
     try {
-      // Use Railway API for sensor readings
-      const API_URL = 'https://web-production-99408.up.railway.app';
+      // ====================================
+      // API URL CONFIGURATION
+      // ====================================
+      // UNCOMMENT ONE OF THE FOLLOWING:
+
+      // LOCAL BACKEND (default)
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
+      // RAILWAY PRODUCTION
+      // const API_URL = 'https://web-production-99408.up.railway.app';
+
+      // ====================================
+
       // Fetch sensor readings with pagination (1000 records at a time)
       const response = await fetch(`${API_URL}/api/sensors/readings/${location}?binType=organic&limit=1000&offset=${offset}`);
 
@@ -207,13 +224,80 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     }
   }, [binSlug]);
 
+  // STEP 3.1: Fetch anorganic sensor readings from backend with pagination
+  const fetchAnorganicSensorReadings = React.useCallback(async (offset = 0, append = false) => {
+    const location = binSlugToLocationMapping[binSlug.toLowerCase()];
+    if (!location) {
+      devWarn('No location mapping found for binSlug:', binSlug);
+      return;
+    }
+
+    setAnorganicSensorDataLoading(true);
+    try {
+      // LOCAL BACKEND (default)
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
+      // Fetch anorganic sensor readings with pagination (1000 records at a time)
+      const response = await fetch(`${API_URL}/api/sensors/readings/${location}?binType=anorganic&limit=1000&offset=${offset}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch anorganic sensor readings');
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.data) {
+        devLog(`Fetched anorganic sensor readings: ${data.data.length} records (offset: ${offset})`);
+
+        // Backend returns data in reverse chronological order (newest first)
+        // Reverse it so latest is at the end for consistency
+        const sortedReadings = [...data.data].reverse();
+
+        if (append) {
+          // Append to existing data
+          setAnorganicSensorReadings(prev => [...sortedReadings, ...prev]);
+        } else {
+          // Replace existing data
+          setAnorganicSensorReadings(sortedReadings);
+        }
+
+        // Check if there's more data
+        setHasMoreAnorganicSensorData(data.data.length === 1000);
+        setAnorganicSensorDataOffset(offset + data.data.length);
+
+        devLog(`First anorganic reading: ID ${sortedReadings[0]?.id}, timestamp: ${sortedReadings[0]?.timestamp}`);
+        devLog(`Last anorganic reading: ID ${sortedReadings[sortedReadings.length - 1]?.id}, timestamp: ${sortedReadings[sortedReadings.length - 1]?.timestamp}`);
+      } else {
+        devWarn('No anorganic sensor readings found');
+        if (!append) {
+          setAnorganicSensorReadings([]);
+        }
+        setHasMoreAnorganicSensorData(false);
+      }
+    } catch (error) {
+      devError('Error fetching anorganic sensor readings:', error);
+      if (!append) {
+        setAnorganicSensorReadings([]);
+      }
+      setHasMoreAnorganicSensorData(false);
+    } finally {
+      setAnorganicSensorDataLoading(false);
+    }
+  }, [binSlug]);
+
   // Initial fetch on mount
   React.useEffect(() => {
     fetchSensorReadings(0, false);
   }, [fetchSensorReadings]);
 
+  // Initial fetch for anorganic on mount
+  React.useEffect(() => {
+    fetchAnorganicSensorReadings(0, false);
+  }, [fetchAnorganicSensorReadings]);
+
   // Initialize with real-time date range for real sensor data
-  const defaultRange = getRealTimeDefaultDateRange();
+  // Default time range is 'daily' (Week view), so use that for initial range
+  const defaultRange = getRealTimeRangeDate('daily');
 
   // State management
   const [currentBinIndex, setCurrentBinIndex] = useState(0);
@@ -276,7 +360,19 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     const startDateObj = new Date(startDate);
 
     switch (timeRange) {
-      case 'fiveMinute': // Hour view
+      case 'minute': // Hourly view (minute intervals)
+        // Same day, end time = start hour :59
+        if (startDate !== endDate) {
+          setEndDate(startDate);
+        }
+        const [hoursMinute] = startTime.split(':');
+        const expectedEndTimeMinute = `${hoursMinute}:59`;
+        if (endTime !== expectedEndTimeMinute) {
+          setEndTime(expectedEndTimeMinute);
+        }
+        break;
+
+      case 'fiveMinute': // 5-min intervals view
         // Same day, end time = start hour :59
         if (startDate !== endDate) {
           setEndDate(startDate);
@@ -483,13 +579,132 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
 
     let chartData: { time: string; fullTimestamp: string; value: number }[] = [];
 
-    if (timeRange === 'hourly') {
-      // DAY VIEW: Show data from Time Period picker range with 15-minute intervals
-      // Parse the applied start date and time from Time Period picker
-      const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
-      const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
+    if (timeRange === 'minute') {
+      // HOURLY VIEW: Show data from current hour with 60 minute intervals (XX:00-XX:59)
+      const [startYear, startMonth, startDay] = appliedStartDate.split('-').map(Number);
+      const [startHourInput, startMinuteInput] = appliedStartTime.split(':').map(Number);
+      const [endYear, endMonth, endDay] = appliedEndDate.split('-').map(Number);
+      const [endHourInput, endMinuteInput] = appliedEndTime.split(':').map(Number);
 
-      devLog(`[Organic Chart Day View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
+      // Create UTC dates by subtracting 7 hours from Jakarta time
+      const startDateTimeUTC = new Date(Date.UTC(startYear, startMonth - 1, startDay, startHourInput - 7, startMinuteInput));
+      const endDateTimeUTC = new Date(Date.UTC(endYear, endMonth - 1, endDay, endHourInput - 7, endMinuteInput));
+
+      devLog(`[Organic Chart Hourly View] Time Period Selection - Start: ${startDateTimeUTC.toISOString()}, End: ${endDateTimeUTC.toISOString()}`);
+
+      // Group by minute, select latest reading per minute
+      const groupByMinute: Record<string, typeof processedData[0]> = {};
+
+      processedData.forEach(item => {
+        // Use Asia/Jakarta timezone consistently
+        const jakartaTimeStr = item.timestamp.toLocaleString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Jakarta'
+        });
+
+        const intervalKey = item.timestamp.toLocaleString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Jakarta'
+        });
+
+        if (!groupByMinute[intervalKey] || item.timestamp > groupByMinute[intervalKey].timestamp) {
+          groupByMinute[intervalKey] = item;
+        }
+      });
+
+      // Filter data based on Time Period picker selection (compare in UTC)
+      const filteredData = Object.values(groupByMinute).filter(item => {
+        return item.timestamp >= startDateTimeUTC && item.timestamp <= endDateTimeUTC;
+      });
+
+      devLog(`[Organic Chart Hourly View] Filtered ${filteredData.length} data points within Time Period range`);
+
+      // Create a map of existing data by minute
+      const dataByMinute = new Map<string, typeof processedData[0]>();
+      filteredData.forEach(item => {
+        const jakartaTimeStr = item.timestamp.toLocaleString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Jakarta'
+        });
+        const key = jakartaTimeStr;
+
+        if (!dataByMinute.has(key) || item.timestamp > dataByMinute.get(key)!.timestamp) {
+          dataByMinute.set(key, item);
+        }
+      });
+
+      // Generate all 60 minutes for the hour (0-59)
+      const targetHour = startHourInput;
+      chartData = [];
+
+      for (let minute = 0; minute < 60; minute++) {
+        const key = `${String(targetHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        const data = dataByMinute.get(key);
+
+        if (data) {
+          // Has data for this minute
+          chartData.push({
+            time: data.timestamp.toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: false,
+              timeZone: 'Asia/Jakarta'
+            }),
+            fullTimestamp: `${data.timestamp.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              timeZone: 'Asia/Jakarta'
+            })} ${data.timestamp.toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false,
+              timeZone: 'Asia/Jakarta'
+            })} (ID #${data.id})`,
+            value: organicToggle === "weight" ? data.weight : data.volume
+          });
+        } else {
+          // No data for this minute, create placeholder with value 0
+          chartData.push({
+            time: `${String(targetHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+            fullTimestamp: `${appliedStartDate} ${String(targetHour).padStart(2, '0')}:${String(minute).padStart(2, '0')} (No data)`,
+            value: 0
+          });
+        }
+      }
+
+      devLog(`[Organic Chart Hourly View] Generated ${chartData.length} data points with 1-minute intervals`);
+
+    } else if (timeRange === 'hourly') {
+      // DAY VIEW: Show data from Time Period picker range with 15-minute intervals
+      // Parse the applied start/end dates as Asia/Jakarta timezone and convert to UTC for filtering
+
+      // The input dates are in format "2025-11-19" and times "00:00", "23:59"
+      // We treat these as Asia/Jakarta time (UTC+7) and need to convert to UTC for comparison
+      const [startYear, startMonth, startDay] = appliedStartDate.split('-').map(Number);
+      const [startHourInput, startMinuteInput] = appliedStartTime.split(':').map(Number);
+      const [endYear, endMonth, endDay] = appliedEndDate.split('-').map(Number);
+      const [endHourInput, endMinuteInput] = appliedEndTime.split(':').map(Number);
+
+      // Create UTC dates by subtracting 7 hours from Jakarta time
+      // Jakarta 00:00 = UTC 17:00 (previous day)
+      const startDateTimeUTC = new Date(Date.UTC(startYear, startMonth - 1, startDay, startHourInput - 7, startMinuteInput));
+      const endDateTimeUTC = new Date(Date.UTC(endYear, endMonth - 1, endDay, endHourInput - 7, endMinuteInput));
+
+      // Also keep the original Jakarta time for display purposes
+      const startDateTime = new Date(Date.UTC(startYear, startMonth - 1, startDay, startHourInput, startMinuteInput));
+      const endDateTime = new Date(Date.UTC(endYear, endMonth - 1, endDay, endHourInput, endMinuteInput));
+
+      devLog(`[Organic Chart Day View] Time Period Selection - Start: ${startDateTimeUTC.toISOString()}, End: ${endDateTimeUTC.toISOString()}`);
 
       // Group by 15-minute intervals, select latest reading per interval
       const groupBy15Min: Record<string, typeof processedData[0]> = {};
@@ -522,9 +737,9 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
         }
       });
 
-      // Filter data based on Time Period picker selection
+      // Filter data based on Time Period picker selection (compare in UTC)
       const filteredData = Object.values(groupBy15Min).filter(item => {
-        return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
+        return item.timestamp >= startDateTimeUTC && item.timestamp <= endDateTimeUTC;
       });
 
       devLog(`[Organic Chart Day View] Filtered ${filteredData.length} data points within Time Period range`);
@@ -795,7 +1010,89 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
 
     let chartData: { time: string; fullTimestamp: string; value: number }[] = [];
 
-    if (timeRange === 'hourly') {
+    if (timeRange === 'minute') {
+      // HOURLY VIEW - Combine Organic + Anorganic by minute
+      // Process anorganic sensor readings too
+      const anorganicProcessedData = anorganicSensorReadings.map(reading => {
+        const timestamp = new Date(reading.timestamp);
+        const weight = parseFloat(reading.weight);
+        const sensorTL = parseFloat(reading.sensor_top_left);
+        const sensorTR = parseFloat(reading.sensor_top_right);
+        const sensorBL = parseFloat(reading.sensor_bottom_left);
+        const sensorBR = parseFloat(reading.sensor_bottom_right);
+        const volume = (!isNaN(sensorTL) && !isNaN(sensorTR) && !isNaN(sensorBL) && !isNaN(sensorBR))
+          ? calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR)
+          : 0;
+
+        return {
+          id: reading.id,
+          timestamp,
+          weight: isNaN(weight) ? 0 : weight,
+          volume
+        };
+      });
+
+      const [startYear, startMonth, startDay] = appliedStartDate.split('-').map(Number);
+      const [startHourInput, startMinuteInput] = appliedStartTime.split(':').map(Number);
+      const [endYear, endMonth, endDay] = appliedEndDate.split('-').map(Number);
+      const [endHourInput, endMinuteInput] = appliedEndTime.split(':').map(Number);
+
+      const startDateTimeUTC = new Date(Date.UTC(startYear, startMonth - 1, startDay, startHourInput - 7, startMinuteInput));
+      const endDateTimeUTC = new Date(Date.UTC(endYear, endMonth - 1, endDay, endHourInput - 7, endMinuteInput));
+
+      // Group organic by minute
+      const organicByMinute = new Map<string, typeof processedData[0]>();
+      processedData.forEach(item => {
+        if (item.timestamp >= startDateTimeUTC && item.timestamp <= endDateTimeUTC) {
+          const key = item.timestamp.toLocaleString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'Asia/Jakarta'
+          });
+          if (!organicByMinute.has(key) || item.timestamp > organicByMinute.get(key)!.timestamp) {
+            organicByMinute.set(key, item);
+          }
+        }
+      });
+
+      // Group anorganic by minute
+      const anorganicByMinute = new Map<string, typeof anorganicProcessedData[0]>();
+      anorganicProcessedData.forEach(item => {
+        if (item.timestamp >= startDateTimeUTC && item.timestamp <= endDateTimeUTC) {
+          const key = item.timestamp.toLocaleString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'Asia/Jakarta'
+          });
+          if (!anorganicByMinute.has(key) || item.timestamp > anorganicByMinute.get(key)!.timestamp) {
+            anorganicByMinute.set(key, item);
+          }
+        }
+      });
+
+      // Generate 60 data points - sum of organic + anorganic for each minute
+      const targetHour = startHourInput;
+      chartData = [];
+
+      for (let minute = 0; minute < 60; minute++) {
+        const key = `${String(targetHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        const organicData = organicByMinute.get(key);
+        const anorganicData = anorganicByMinute.get(key);
+
+        const organicValue = organicData ? (totalToggle === "weight" ? organicData.weight : organicData.volume) : 0;
+        const anorganicValue = anorganicData ? (totalToggle === "weight" ? anorganicData.weight : anorganicData.volume) : 0;
+        const totalValue = organicValue + anorganicValue;
+
+        chartData.push({
+          time: key,
+          fullTimestamp: `${appliedStartDate} ${key} - Organic: ${organicValue.toFixed(2)}, Anorganic: ${anorganicValue.toFixed(2)}`,
+          value: totalValue
+        });
+      }
+
+    } else if (timeRange === 'hourly') {
       // DAY VIEW - 15-minute intervals
       const groupBy15Min: Record<string, typeof processedData[0]> = {};
       processedData.forEach(item => {
@@ -904,7 +1201,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     }
 
     return chartData;
-  }, [sensorReadings, appliedStartDate, appliedEndDate, appliedStartTime, appliedEndTime, totalToggle, timeRange]);
+  }, [sensorReadings, anorganicSensorReadings, appliedStartDate, appliedEndDate, appliedStartTime, appliedEndTime, totalToggle, timeRange]);
 
   const getTotalChartData = () => totalChartData;
 
@@ -917,17 +1214,26 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     setHourlyOffsets({ total: 0, residue: 0, organic: 0, anorganic: 0 });
     const newRange = getRealTimeRangeDate(newTimeRange);
 
-    // Update UI state with new range
-    setStartDate(newRange.startDate);
-    setStartTime(newRange.startTime);
-    setEndDate(newRange.endDate);
-    setEndTime(newRange.endTime);
+    // Update both UI state and applied state with new range using a single dispatch
+    dispatchDateRange({
+      type: 'SET_UI_DATES',
+      payload: {
+        startDate: newRange.startDate,
+        startTime: newRange.startTime,
+        endDate: newRange.endDate,
+        endTime: newRange.endTime
+      }
+    });
 
-    // Auto-apply the new range
-    setAppliedStartDate(newRange.startDate);
-    setAppliedStartTime(newRange.startTime);
-    setAppliedEndDate(newRange.endDate);
-    setAppliedEndTime(newRange.endTime);
+    dispatchDateRange({
+      type: 'SET_APPLIED_DATES',
+      payload: {
+        startDate: newRange.startDate,
+        startTime: newRange.startTime,
+        endDate: newRange.endDate,
+        endTime: newRange.endTime
+      }
+    });
 
     devLog("Time range changed to:", newTimeRange, newRange);
   };
@@ -939,6 +1245,16 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     const currentEnd = new Date(`${appliedEndDate}T${appliedEndTime}`);
 
     switch (timeRange) {
+      case 'minute': // Hourly view - go back 1 hour
+        currentStart.setHours(currentStart.getHours() - 1);
+        currentEnd.setHours(currentEnd.getHours() - 1);
+        break;
+
+      case 'fiveMinute': // 5-min view - go back 1 hour
+        currentStart.setHours(currentStart.getHours() - 1);
+        currentEnd.setHours(currentEnd.getHours() - 1);
+        break;
+
       case 'hourly': // Day view - go back 1 day
         currentStart.setDate(currentStart.getDate() - 1);
         currentEnd.setDate(currentEnd.getDate() - 1);
@@ -993,6 +1309,16 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     const currentEnd = new Date(`${appliedEndDate}T${appliedEndTime}`);
 
     switch (timeRange) {
+      case 'minute': // Hourly view - go forward 1 hour
+        currentStart.setHours(currentStart.getHours() + 1);
+        currentEnd.setHours(currentEnd.getHours() + 1);
+        break;
+
+      case 'fiveMinute': // 5-min view - go forward 1 hour
+        currentStart.setHours(currentStart.getHours() + 1);
+        currentEnd.setHours(currentEnd.getHours() + 1);
+        break;
+
       case 'hourly': // Day view - go forward 1 day
         currentStart.setDate(currentStart.getDate() + 1);
         currentEnd.setDate(currentEnd.getDate() + 1);
@@ -1049,6 +1375,12 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
 
     // Format based on time range type
     switch (timeRange) {
+      case 'minute': // Hourly view - show hour range (XX:00 - XX:59)
+        return { startTime: range.startTime, endTime: range.endTime };
+
+      case 'fiveMinute': // 5-min view - show hour range
+        return { startTime: range.startTime, endTime: range.endTime };
+
       case 'hourly': // Day view - show full date
         const dayStr = startDateTime.toLocaleDateString('en-US', {
           month: 'short',
@@ -1622,9 +1954,9 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
         }
       });
 
-      // Filter data based on Time Period picker selection
+      // Filter data based on Time Period picker selection (compare in UTC)
       const filteredData = Object.values(groupBy15Min).filter(item => {
-        return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
+        return item.timestamp >= startDateTimeUTC && item.timestamp <= endDateTimeUTC;
       });
 
       devLog(`[Organic Chart Day View] Filtered ${filteredData.length} data points within Time Period range`);
@@ -1867,9 +2199,200 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     };
   };
 
-  const getAnorganicChartDataWithToggle = () => {
-    // STEP 1: Return empty array to verify data fetching
-    return [];
+  const getCurrentAnorganicData = () => {
+    if (!anorganicSensorReadings || anorganicSensorReadings.length === 0) {
+      return { weight: 0, volume: 0 };
+    }
+
+    // Get the latest reading
+    const latestReading = anorganicSensorReadings[anorganicSensorReadings.length - 1];
+    const weight = parseFloat(latestReading.weight);
+
+    // Parse 4 individual sensor readings
+    const sensorTL = parseFloat(latestReading.sensor_top_left);
+    const sensorTR = parseFloat(latestReading.sensor_top_right);
+    const sensorBL = parseFloat(latestReading.sensor_bottom_left);
+    const sensorBR = parseFloat(latestReading.sensor_bottom_right);
+
+    // Calculate volume percentage from 4 sensors
+    const BIN_HEIGHT = 60; // cm
+    let volumePercentage = 0;
+
+    if (!isNaN(sensorTL) && !isNaN(sensorTR) && !isNaN(sensorBL) && !isNaN(sensorBR)) {
+      // Calculate average of 4 sensors
+      const sum = sensorTL + sensorTR + sensorBL + sensorBR;
+      const avgDistance = sum / 4;
+
+      // Calculate fill height
+      const fillHeight = BIN_HEIGHT - avgDistance;
+
+      // Calculate percentage
+      volumePercentage = Math.max(0, Math.min(100, (fillHeight / BIN_HEIGHT) * 100));
+    }
+
+    return {
+      weight: isNaN(weight) ? 0 : weight.toFixed(2),
+      volume: volumePercentage.toFixed(1)
+    };
+  };
+
+  const getAnorganicChartDataWithToggle = React.useCallback(() => {
+    // Process anorganic sensor readings for chart
+    if (!anorganicSensorReadings || anorganicSensorReadings.length === 0) {
+      devLog('[Anorganic Chart] No sensor readings available');
+      return [];
+    }
+
+    devLog(`[Anorganic Chart] Processing ${anorganicSensorReadings.length} sensor readings`);
+
+    // Helper function to calculate volume percentage from 4 sensors
+    const calculateVolumePercentage = (topLeft: number, topRight: number, bottomLeft: number, bottomRight: number): number => {
+      const BIN_HEIGHT = 60; // cm
+      const sum = topLeft + topRight + bottomLeft + bottomRight;
+      const avgDistance = sum / 4;
+      const fillHeight = BIN_HEIGHT - avgDistance;
+      const percentage = (fillHeight / BIN_HEIGHT) * 100;
+      return Math.max(0, Math.min(100, percentage));
+    };
+
+    // Process readings
+    const processedData = anorganicSensorReadings.map(reading => {
+      const timestamp = new Date(reading.timestamp);
+      const weight = parseFloat(reading.weight);
+
+      // Parse 4 individual sensor readings
+      const sensorTL = parseFloat(reading.sensor_top_left);
+      const sensorTR = parseFloat(reading.sensor_top_right);
+      const sensorBL = parseFloat(reading.sensor_bottom_left);
+      const sensorBR = parseFloat(reading.sensor_bottom_right);
+
+      // Calculate volume from 4 sensors
+      const volume = (!isNaN(sensorTL) && !isNaN(sensorTR) && !isNaN(sensorBL) && !isNaN(sensorBR))
+        ? calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR)
+        : 0;
+
+      return {
+        id: reading.id,
+        timestamp,
+        timestampString: reading.timestamp,
+        weight: isNaN(weight) ? 0 : weight,
+        volume,
+        sensors: {
+          topLeft: sensorTL,
+          topRight: sensorTR,
+          bottomLeft: sensorBL,
+          bottomRight: sensorBR
+        }
+      };
+    });
+
+    // Sort by timestamp (oldest first)
+    processedData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+    let chartData: { time: string; fullTimestamp: string; value: number }[] = [];
+
+    if (timeRange === 'minute') {
+      // HOURLY VIEW: Show data from current hour with 60 minute intervals (XX:00-XX:59)
+      const [startYear, startMonth, startDay] = appliedStartDate.split('-').map(Number);
+      const [startHourInput, startMinuteInput] = appliedStartTime.split(':').map(Number);
+      const [endYear, endMonth, endDay] = appliedEndDate.split('-').map(Number);
+      const [endHourInput, endMinuteInput] = appliedEndTime.split(':').map(Number);
+
+      // Create UTC dates by subtracting 7 hours from Jakarta time
+      const startDateTimeUTC = new Date(Date.UTC(startYear, startMonth - 1, startDay, startHourInput - 7, startMinuteInput));
+      const endDateTimeUTC = new Date(Date.UTC(endYear, endMonth - 1, endDay, endHourInput - 7, endMinuteInput));
+
+      devLog(`[Anorganic Chart Hourly View] Time Period Selection - Start: ${startDateTimeUTC.toISOString()}, End: ${endDateTimeUTC.toISOString()}`);
+
+      // Group by minute, select latest reading per minute
+      const groupByMinute: Record<string, typeof processedData[0]> = {};
+
+      processedData.forEach(item => {
+        const intervalKey = item.timestamp.toLocaleString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Jakarta'
+        });
+
+        if (!groupByMinute[intervalKey] || item.timestamp > groupByMinute[intervalKey].timestamp) {
+          groupByMinute[intervalKey] = item;
+        }
+      });
+
+      // Filter data based on Time Period picker selection (compare in UTC)
+      const filteredData = Object.values(groupByMinute).filter(item => {
+        return item.timestamp >= startDateTimeUTC && item.timestamp <= endDateTimeUTC;
+      });
+
+      devLog(`[Anorganic Chart Hourly View] Filtered ${filteredData.length} data points within Time Period range`);
+
+      // Create a map of existing data by minute
+      const dataByMinute = new Map<string, typeof processedData[0]>();
+      filteredData.forEach(item => {
+        const jakartaTimeStr = item.timestamp.toLocaleString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Jakarta'
+        });
+        const key = jakartaTimeStr;
+
+        if (!dataByMinute.has(key) || item.timestamp > dataByMinute.get(key)!.timestamp) {
+          dataByMinute.set(key, item);
+        }
+      });
+
+      // Generate all 60 minutes for the hour (0-59)
+      const targetHour = startHourInput;
+      chartData = [];
+
+      for (let minute = 0; minute < 60; minute++) {
+        const key = `${String(targetHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        const data = dataByMinute.get(key);
+
+        if (data) {
+          // Has data for this minute
+          chartData.push({
+            time: data.timestamp.toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: false,
+              timeZone: 'Asia/Jakarta'
+            }),
+            fullTimestamp: `${data.timestamp.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              timeZone: 'Asia/Jakarta'
+            })} ${data.timestamp.toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false,
+              timeZone: 'Asia/Jakarta'
+            })} (ID #${data.id})`,
+            value: anorganicToggle === "weight" ? data.weight : data.volume
+          });
+        } else {
+          // No data for this minute, create placeholder with value 0
+          chartData.push({
+            time: `${String(targetHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+            fullTimestamp: `${appliedStartDate} ${String(targetHour).padStart(2, '0')}:${String(minute).padStart(2, '0')} (No data)`,
+            value: 0
+          });
+        }
+      }
+
+      devLog(`[Anorganic Chart Hourly View] Generated ${chartData.length} data points with 1-minute intervals`);
+    }
+    // For other time ranges (hourly/daily/weekly), return empty for now
+    // TODO: Implement other time range views if needed
+
+    return chartData;
+  }, [anorganicSensorReadings, appliedStartDate, appliedEndDate, appliedStartTime, appliedEndTime, anorganicToggle, timeRange]);
 
     // Original code commented out for Step 1
     // if (!anorganicData.anorganicAnalytics?.length) return [];
@@ -1923,7 +2446,11 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     //     value: anorganicToggle === "weight" ? item.avg_weight : item.avg_volume
     //   };
     // });
-  };
+
+  // Memoize anorganic chart data
+  const anorganicChartData = React.useMemo(() => {
+    return getAnorganicChartDataWithToggle();
+  }, [getAnorganicChartDataWithToggle]);
 
   const binComponentsData = [
     {
@@ -1966,8 +2493,8 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       bgColor: 'bg-gradient-to-br from-yellow-500 to-yellow-600',
       toggle: anorganicToggle,
       setToggle: setAnorganicToggle,
-      chartData: getAnorganicChartDataWithToggle(),
-      currentData: currentSpecific.anorganic,
+      chartData: anorganicChartData,
+      currentData: getCurrentAnorganicData(),
       titleColor: 'text-yellow-600',
       cardBg: 'bg-yellow-50',
       borderColor: 'border-yellow-200',
