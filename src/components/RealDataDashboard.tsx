@@ -377,6 +377,49 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
 
     devLog(`[Organic Chart] Processing ${sensorReadings.length} sensor readings`);
 
+    // Helper: Intra-day accumulated memory calculation
+    // Calculates total waste generated in a day accounting for pickups
+    const calculateIntraDayAccumulation = (
+      dayReadings: Array<{ timestamp: Date; weight: number; volume: number; id: number }>,
+      metric: 'weight' | 'volume'
+    ): number => {
+      if (dayReadings.length === 0) return 0;
+      if (dayReadings.length === 1) return 0; // Only one reading, no generation
+
+      // Sort by timestamp
+      const sorted = [...dayReadings].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+      // Detection thresholds
+      const WEIGHT_THRESHOLD = 0.5; // kg
+      const VOLUME_THRESHOLD = 5; // percent
+
+      const threshold = metric === 'weight' ? WEIGHT_THRESHOLD : VOLUME_THRESHOLD;
+      const values = sorted.map(r => metric === 'weight' ? r.weight : r.volume);
+
+      // Initialize cumulative array
+      const B: number[] = new Array(values.length);
+      B[0] = values[0];
+
+      // Apply accumulated memory algorithm
+      for (let i = 1; i < values.length; i++) {
+        const A_current = values[i];
+        const A_prev = values[i - 1];
+
+        if (A_current >= A_prev - threshold) {
+          // Normal accumulation - no pickup detected
+          B[i] = B[i - 1] + (A_current - A_prev);
+        } else {
+          // Pickup detected! (drastic decrease)
+          B[i] = B[i - 1] + A_current;
+          devLog(`  [Intra-Day] Pickup detected at ${sorted[i].timestamp.toISOString()}: ${A_prev.toFixed(2)} → ${A_current.toFixed(2)}`);
+        }
+      }
+
+      // Total waste generated this day
+      const totalWaste = B[B.length - 1] - B[0];
+      return Math.max(0, totalWaste); // Ensure non-negative
+    };
+
     // Helper function to calculate volume percentage from 4 sensors
     const calculateVolumePercentage = (topLeft: number, topRight: number, bottomLeft: number, bottomRight: number): number => {
       const BIN_HEIGHT = 60; // cm
@@ -562,115 +605,135 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       devLog(`[Organic Chart Day View] Generated ${chartData.length} data points with 15-minute intervals`);
 
     } else if (timeRange === 'daily') {
-      // WEEK VIEW: Show data from Time Period picker range
-      // Parse the applied start date and time from Time Period picker
+      // WEEK VIEW: Show data from Time Period picker range with DAILY AGGREGATION
+      // Uses accumulated memory logic to handle intra-day pickups
       const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
       const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
 
       devLog(`[Organic Chart Week View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
 
-      // Group by HOUR, select latest reading per hour
-      const groupByHour: Record<string, typeof processedData[0]> = {};
+      // Group ALL readings by date (YYYY-MM-DD)
+      const readingsByDate: Record<string, typeof processedData> = {};
 
       processedData.forEach(item => {
-        const hourKey = item.timestamp.toLocaleString('en-US', {
+        const dateKey = item.timestamp.toLocaleDateString('en-US', {
           year: 'numeric',
           month: '2-digit',
           day: '2-digit',
-          hour: '2-digit',
-          hour12: false,
           timeZone: 'Asia/Jakarta'
         });
 
-        if (!groupByHour[hourKey] || item.timestamp > groupByHour[hourKey].timestamp) {
-          groupByHour[hourKey] = item;
+        if (!readingsByDate[dateKey]) {
+          readingsByDate[dateKey] = [];
         }
+        readingsByDate[dateKey].push(item);
       });
 
-      const hourData = Object.values(groupByHour).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      devLog(`[Organic Chart Week View] Grouped into ${Object.keys(readingsByDate).length} days`);
 
-      // Filter data based on Time Period picker selection
-      const filteredData = hourData.filter(item => {
-        return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
+      // Calculate daily totals using accumulated memory logic
+      const dailyTotals: Array<{ date: string; timestamp: Date; totalWaste: number }> = [];
+
+      Object.entries(readingsByDate).forEach(([dateKey, dayReadings]) => {
+        // Check if this date is within our range
+        const firstReading = dayReadings[0];
+        if (firstReading.timestamp < startDateTime || firstReading.timestamp > endDateTime) {
+          return; // Skip dates outside range
+        }
+
+        // Apply intra-day accumulated memory algorithm
+        const metric = organicToggle === "weight" ? "weight" : "volume";
+        const totalWaste = calculateIntraDayAccumulation(dayReadings, metric);
+
+        dailyTotals.push({
+          date: dateKey,
+          timestamp: firstReading.timestamp,
+          totalWaste
+        });
+
+        devLog(`  [Week View] ${dateKey}: ${dayReadings.length} readings → ${totalWaste.toFixed(2)} ${metric} generated`);
       });
 
-      devLog(`[Organic Chart Week View] Filtered ${filteredData.length} data points within Time Period range`);
+      // Sort by date
+      dailyTotals.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-      chartData = filteredData.map(item => ({
-        time: item.timestamp.toLocaleDateString('en-US', {
+      devLog(`[Organic Chart Week View] Generated ${dailyTotals.length} daily data points`);
+
+      // Convert to chart format
+      chartData = dailyTotals.map(day => ({
+        time: day.timestamp.toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
           timeZone: 'Asia/Jakarta'
-        }) + ' ' + item.timestamp.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          hour12: false,
-          timeZone: 'Asia/Jakarta'
-        }) + ':00',
-        fullTimestamp: `${item.timestamp.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          timeZone: 'Asia/Jakarta'
-        })} ${item.timestamp.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-          timeZone: 'Asia/Jakarta'
-        })} (ID #${item.id})`,
-        value: organicToggle === "weight" ? item.weight : item.volume
+        }),
+        fullTimestamp: `${day.date} - Total: ${day.totalWaste.toFixed(2)} ${organicToggle === "weight" ? "kg" : "%"}`,
+        value: day.totalWaste
       }));
 
     } else if (timeRange === 'weekly') {
-      // MONTH VIEW: Show data from Time Period picker range
-      // Parse the applied start date and time from Time Period picker
+      // MONTH VIEW: Show data from Time Period picker range with DAILY AGGREGATION
+      // Uses accumulated memory logic to handle intra-day pickups
       const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
       const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
 
       devLog(`[Organic Chart Month View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
 
-      // Group by DAY, select latest reading per day
-      const groupByDay: Record<string, typeof processedData[0]> = {};
+      // Group ALL readings by date (YYYY-MM-DD)
+      const readingsByDate: Record<string, typeof processedData> = {};
 
       processedData.forEach(item => {
-        const dayKey = item.timestamp.toLocaleDateString('en-US', {
+        const dateKey = item.timestamp.toLocaleDateString('en-US', {
           year: 'numeric',
           month: '2-digit',
           day: '2-digit',
           timeZone: 'Asia/Jakarta'
         });
 
-        if (!groupByDay[dayKey] || item.timestamp > groupByDay[dayKey].timestamp) {
-          groupByDay[dayKey] = item;
+        if (!readingsByDate[dateKey]) {
+          readingsByDate[dateKey] = [];
         }
+        readingsByDate[dateKey].push(item);
       });
 
-      const dayData = Object.values(groupByDay).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      devLog(`[Organic Chart Month View] Grouped into ${Object.keys(readingsByDate).length} days`);
 
-      // Filter data based on Time Period picker selection
-      const filteredData = dayData.filter(item => {
-        return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
+      // Calculate daily totals using accumulated memory logic
+      const dailyTotals: Array<{ date: string; timestamp: Date; totalWaste: number }> = [];
+
+      Object.entries(readingsByDate).forEach(([dateKey, dayReadings]) => {
+        // Check if this date is within our range
+        const firstReading = dayReadings[0];
+        if (firstReading.timestamp < startDateTime || firstReading.timestamp > endDateTime) {
+          return; // Skip dates outside range
+        }
+
+        // Apply intra-day accumulated memory algorithm
+        const metric = organicToggle === "weight" ? "weight" : "volume";
+        const totalWaste = calculateIntraDayAccumulation(dayReadings, metric);
+
+        dailyTotals.push({
+          date: dateKey,
+          timestamp: firstReading.timestamp,
+          totalWaste
+        });
+
+        devLog(`  [Month View] ${dateKey}: ${dayReadings.length} readings → ${totalWaste.toFixed(2)} ${metric} generated`);
       });
 
-      devLog(`[Organic Chart Month View] Filtered ${filteredData.length} data points within Time Period range`);
+      // Sort by date
+      dailyTotals.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-      chartData = filteredData.map(item => ({
-        time: item.timestamp.toLocaleDateString('en-US', {
+      devLog(`[Organic Chart Month View] Generated ${dailyTotals.length} daily data points`);
+
+      // Convert to chart format
+      chartData = dailyTotals.map(day => ({
+        time: day.timestamp.toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
           timeZone: 'Asia/Jakarta'
         }),
-        fullTimestamp: `${item.timestamp.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          timeZone: 'Asia/Jakarta'
-        })} ${item.timestamp.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-          timeZone: 'Asia/Jakarta'
-        })} (ID #${item.id})`,
-        value: organicToggle === "weight" ? item.weight : item.volume
+        fullTimestamp: `${day.date} - Total: ${day.totalWaste.toFixed(2)} ${organicToggle === "weight" ? "kg" : "%"}`,
+        value: day.totalWaste
       }));
     }
 
@@ -1631,115 +1694,135 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       devLog(`[Organic Chart Day View] Generated ${chartData.length} data points with 15-minute intervals`);
 
     } else if (timeRange === 'daily') {
-      // WEEK VIEW: Show data from Time Period picker range
-      // Parse the applied start date and time from Time Period picker
+      // WEEK VIEW: Show data from Time Period picker range with DAILY AGGREGATION
+      // Uses accumulated memory logic to handle intra-day pickups
       const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
       const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
 
       devLog(`[Organic Chart Week View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
 
-      // Group by HOUR, select latest reading per hour
-      const groupByHour: Record<string, typeof processedData[0]> = {};
+      // Group ALL readings by date (YYYY-MM-DD)
+      const readingsByDate: Record<string, typeof processedData> = {};
 
       processedData.forEach(item => {
-        const hourKey = item.timestamp.toLocaleString('en-US', {
+        const dateKey = item.timestamp.toLocaleDateString('en-US', {
           year: 'numeric',
           month: '2-digit',
           day: '2-digit',
-          hour: '2-digit',
-          hour12: false,
           timeZone: 'Asia/Jakarta'
         });
 
-        if (!groupByHour[hourKey] || item.timestamp > groupByHour[hourKey].timestamp) {
-          groupByHour[hourKey] = item;
+        if (!readingsByDate[dateKey]) {
+          readingsByDate[dateKey] = [];
         }
+        readingsByDate[dateKey].push(item);
       });
 
-      const hourData = Object.values(groupByHour).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      devLog(`[Organic Chart Week View] Grouped into ${Object.keys(readingsByDate).length} days`);
 
-      // Filter data based on Time Period picker selection
-      const filteredData = hourData.filter(item => {
-        return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
+      // Calculate daily totals using accumulated memory logic
+      const dailyTotals: Array<{ date: string; timestamp: Date; totalWaste: number }> = [];
+
+      Object.entries(readingsByDate).forEach(([dateKey, dayReadings]) => {
+        // Check if this date is within our range
+        const firstReading = dayReadings[0];
+        if (firstReading.timestamp < startDateTime || firstReading.timestamp > endDateTime) {
+          return; // Skip dates outside range
+        }
+
+        // Apply intra-day accumulated memory algorithm
+        const metric = organicToggle === "weight" ? "weight" : "volume";
+        const totalWaste = calculateIntraDayAccumulation(dayReadings, metric);
+
+        dailyTotals.push({
+          date: dateKey,
+          timestamp: firstReading.timestamp,
+          totalWaste
+        });
+
+        devLog(`  [Week View] ${dateKey}: ${dayReadings.length} readings → ${totalWaste.toFixed(2)} ${metric} generated`);
       });
 
-      devLog(`[Organic Chart Week View] Filtered ${filteredData.length} data points within Time Period range`);
+      // Sort by date
+      dailyTotals.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-      chartData = filteredData.map(item => ({
-        time: item.timestamp.toLocaleDateString('en-US', {
+      devLog(`[Organic Chart Week View] Generated ${dailyTotals.length} daily data points`);
+
+      // Convert to chart format
+      chartData = dailyTotals.map(day => ({
+        time: day.timestamp.toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
           timeZone: 'Asia/Jakarta'
-        }) + ' ' + item.timestamp.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          hour12: false,
-          timeZone: 'Asia/Jakarta'
-        }) + ':00',
-        fullTimestamp: `${item.timestamp.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          timeZone: 'Asia/Jakarta'
-        })} ${item.timestamp.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-          timeZone: 'Asia/Jakarta'
-        })} (ID #${item.id})`,
-        value: organicToggle === "weight" ? item.weight : item.volume
+        }),
+        fullTimestamp: `${day.date} - Total: ${day.totalWaste.toFixed(2)} ${organicToggle === "weight" ? "kg" : "%"}`,
+        value: day.totalWaste
       }));
 
     } else if (timeRange === 'weekly') {
-      // MONTH VIEW: Show data from Time Period picker range
-      // Parse the applied start date and time from Time Period picker
+      // MONTH VIEW: Show data from Time Period picker range with DAILY AGGREGATION
+      // Uses accumulated memory logic to handle intra-day pickups
       const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
       const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
 
       devLog(`[Organic Chart Month View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
 
-      // Group by DAY, select latest reading per day
-      const groupByDay: Record<string, typeof processedData[0]> = {};
+      // Group ALL readings by date (YYYY-MM-DD)
+      const readingsByDate: Record<string, typeof processedData> = {};
 
       processedData.forEach(item => {
-        const dayKey = item.timestamp.toLocaleDateString('en-US', {
+        const dateKey = item.timestamp.toLocaleDateString('en-US', {
           year: 'numeric',
           month: '2-digit',
           day: '2-digit',
           timeZone: 'Asia/Jakarta'
         });
 
-        if (!groupByDay[dayKey] || item.timestamp > groupByDay[dayKey].timestamp) {
-          groupByDay[dayKey] = item;
+        if (!readingsByDate[dateKey]) {
+          readingsByDate[dateKey] = [];
         }
+        readingsByDate[dateKey].push(item);
       });
 
-      const dayData = Object.values(groupByDay).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      devLog(`[Organic Chart Month View] Grouped into ${Object.keys(readingsByDate).length} days`);
 
-      // Filter data based on Time Period picker selection
-      const filteredData = dayData.filter(item => {
-        return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
+      // Calculate daily totals using accumulated memory logic
+      const dailyTotals: Array<{ date: string; timestamp: Date; totalWaste: number }> = [];
+
+      Object.entries(readingsByDate).forEach(([dateKey, dayReadings]) => {
+        // Check if this date is within our range
+        const firstReading = dayReadings[0];
+        if (firstReading.timestamp < startDateTime || firstReading.timestamp > endDateTime) {
+          return; // Skip dates outside range
+        }
+
+        // Apply intra-day accumulated memory algorithm
+        const metric = organicToggle === "weight" ? "weight" : "volume";
+        const totalWaste = calculateIntraDayAccumulation(dayReadings, metric);
+
+        dailyTotals.push({
+          date: dateKey,
+          timestamp: firstReading.timestamp,
+          totalWaste
+        });
+
+        devLog(`  [Month View] ${dateKey}: ${dayReadings.length} readings → ${totalWaste.toFixed(2)} ${metric} generated`);
       });
 
-      devLog(`[Organic Chart Month View] Filtered ${filteredData.length} data points within Time Period range`);
+      // Sort by date
+      dailyTotals.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-      chartData = filteredData.map(item => ({
-        time: item.timestamp.toLocaleDateString('en-US', {
+      devLog(`[Organic Chart Month View] Generated ${dailyTotals.length} daily data points`);
+
+      // Convert to chart format
+      chartData = dailyTotals.map(day => ({
+        time: day.timestamp.toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
           timeZone: 'Asia/Jakarta'
         }),
-        fullTimestamp: `${item.timestamp.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          timeZone: 'Asia/Jakarta'
-        })} ${item.timestamp.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-          timeZone: 'Asia/Jakarta'
-        })} (ID #${item.id})`,
-        value: organicToggle === "weight" ? item.weight : item.volume
+        fullTimestamp: `${day.date} - Total: ${day.totalWaste.toFixed(2)} ${organicToggle === "weight" ? "kg" : "%"}`,
+        value: day.totalWaste
       }));
     }
 
