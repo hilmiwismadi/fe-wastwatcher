@@ -14,6 +14,7 @@ interface TimePeriodProps {
   onEndTimeChange: (time: string) => void;
   onTimeRangeChange: (range: TimeRange) => void;
   onApply: () => void;
+  excludeRanges?: TimeRange[]; // Optional array of ranges to exclude
 }
 
 export const TimePeriod: React.FC<TimePeriodProps> = ({
@@ -28,6 +29,7 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
   onEndTimeChange,
   onTimeRangeChange,
   onApply,
+  excludeRanges = [],
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -39,11 +41,6 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
     const startDateObj = new Date(newStartDate);
 
     switch (timeRange) {
-      case 'fiveMinute': // Hour view
-        // Same day for hour view
-        onEndDateChange(newStartDate);
-        break;
-
       case 'hourly': // Day view
         // Same day
         onEndDateChange(newStartDate);
@@ -69,13 +66,7 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
 
   const handleStartTimeChange = (newStartTime: string) => {
     onStartTimeChange(newStartTime);
-
-    // For Hour view, automatically set end time to :59 of the same hour
-    if (timeRange === 'fiveMinute') {
-      const [hours] = newStartTime.split(':');
-      const endTime = `${hours}:59`;
-      onEndTimeChange(endTime);
-    }
+    // No automatic end time adjustment needed for Day/Week/Month views
   };
 
   // Format date and time for display
@@ -122,6 +113,7 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
                 selectedRange={timeRange}
                 onRangeChange={onTimeRangeChange}
                 className="justify-start"
+                excludeRanges={excludeRanges}
               />
             </div>
 
@@ -186,6 +178,7 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
               selectedRange={timeRange}
               onRangeChange={onTimeRangeChange}
               className="justify-start"
+              excludeRanges={excludeRanges}
             />
           </div>
           <button

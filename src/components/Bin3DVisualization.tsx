@@ -46,7 +46,7 @@ export default function Bin3DVisualization({
       case 'organic':
         return { primary: '#22C55E', secondary: '#16A34A', light: '#86EFAC', dark: '#15803D' }
       case 'anorganic':
-        return { primary: '#3B82F6', secondary: '#2563EB', light: '#93C5FD', dark: '#1E40AF' }
+        return { primary: '#EAB308', secondary: '#CA8A04', light: '#FDE047', dark: '#A16207' }
       case 'residue':
         return { primary: '#F97316', secondary: '#EA580C', light: '#FDBA74', dark: '#C2410C' }
     }

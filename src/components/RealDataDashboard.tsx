@@ -22,6 +22,18 @@ import { binSlugToIdMapping } from '../data/mockData';
 import { getRealTimeDefaultDateRange, combineDateAndTime, getRealTimeRangeDate } from '../utils/dateUtils';
 import { apiService, Device } from '../services/api';
 
+// Optimized: Conditional logging for development only
+const isDev = process.env.NODE_ENV === 'development';
+const devLog = (...args: any[]) => {
+  if (isDev) console.log(...args);
+};
+const devWarn = (...args: any[]) => {
+  if (isDev) console.warn(...args);
+};
+const devError = (...args: any[]) => {
+  if (isDev) console.error(...args);
+};
+
 interface RealDataDashboardProps {
   binSlug?: string; // URL slug for the bin (e.g., "kantinlt1")
 }
@@ -126,7 +138,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
           }
         }
       } catch (error) {
-        console.error('Error fetching bin data:', error);
+        devError('Error fetching bin data:', error);
         setTrashBinName('Error loading bin');
         setCondition('Unknown');
       }
@@ -139,7 +151,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
   const fetchSensorReadings = React.useCallback(async (offset = 0, append = false) => {
     const location = binSlugToLocationMapping[binSlug.toLowerCase()];
     if (!location) {
-      console.warn('No location mapping found for binSlug:', binSlug);
+      devWarn('No location mapping found for binSlug:', binSlug);
       return;
     }
 
@@ -157,7 +169,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       const data = await response.json();
 
       if (data.success && data.data) {
-        console.log(`Fetched sensor readings: ${data.data.length} records (offset: ${offset})`);
+        devLog(`Fetched sensor readings: ${data.data.length} records (offset: ${offset})`);
 
         // Backend returns data in reverse chronological order (newest first)
         // Reverse it so latest is at the end for consistency
@@ -175,17 +187,17 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
         setHasMoreSensorData(data.data.length === 1000);
         setSensorDataOffset(offset + data.data.length);
 
-        console.log(`First reading: ID ${sortedReadings[0]?.id}, timestamp: ${sortedReadings[0]?.timestamp}`);
-        console.log(`Last reading: ID ${sortedReadings[sortedReadings.length - 1]?.id}, timestamp: ${sortedReadings[sortedReadings.length - 1]?.timestamp}`);
+        devLog(`First reading: ID ${sortedReadings[0]?.id}, timestamp: ${sortedReadings[0]?.timestamp}`);
+        devLog(`Last reading: ID ${sortedReadings[sortedReadings.length - 1]?.id}, timestamp: ${sortedReadings[sortedReadings.length - 1]?.timestamp}`);
       } else {
-        console.warn('No sensor readings found');
+        devWarn('No sensor readings found');
         if (!append) {
           setSensorReadings([]);
         }
         setHasMoreSensorData(false);
       }
     } catch (error) {
-      console.error('Error fetching sensor readings:', error);
+      devError('Error fetching sensor readings:', error);
       if (!append) {
         setSensorReadings([]);
       }
@@ -215,11 +227,49 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     anorganic: 0
   });
 
-  // UI State (what user sees in the form)
-  const [startDate, setStartDate] = useState(defaultRange.startDate);
-  const [startTime, setStartTime] = useState(defaultRange.startTime);
-  const [endDate, setEndDate] = useState(defaultRange.endDate);
-  const [endTime, setEndTime] = useState(defaultRange.endTime);
+  // Optimized: Batch date range state updates with useReducer
+  const dateRangeReducer = (state: any, action: any) => {
+    switch (action.type) {
+      case 'SET_UI_DATES':
+        return { ...state, ...action.payload };
+      case 'SET_APPLIED_DATES':
+        return {
+          ...state,
+          appliedStartDate: action.payload.startDate,
+          appliedStartTime: action.payload.startTime,
+          appliedEndDate: action.payload.endDate,
+          appliedEndTime: action.payload.endTime
+        };
+      case 'SET_ALL_DATES':
+        return { ...state, ...action.payload };
+      default:
+        return state;
+    }
+  };
+
+  const [dateRangeState, dispatchDateRange] = React.useReducer(dateRangeReducer, {
+    startDate: defaultRange.startDate,
+    startTime: defaultRange.startTime,
+    endDate: defaultRange.endDate,
+    endTime: defaultRange.endTime,
+    appliedStartDate: defaultRange.startDate,
+    appliedStartTime: defaultRange.startTime,
+    appliedEndDate: defaultRange.endDate,
+    appliedEndTime: defaultRange.endTime,
+  });
+
+  // Destructure for backwards compatibility
+  const { startDate, startTime, endDate, endTime, appliedStartDate, appliedStartTime, appliedEndDate, appliedEndTime } = dateRangeState;
+
+  // Wrapper functions for backwards compatibility
+  const setStartDate = (val: string) => dispatchDateRange({ type: 'SET_UI_DATES', payload: { startDate: val } });
+  const setStartTime = (val: string) => dispatchDateRange({ type: 'SET_UI_DATES', payload: { startTime: val } });
+  const setEndDate = (val: string) => dispatchDateRange({ type: 'SET_UI_DATES', payload: { endDate: val } });
+  const setEndTime = (val: string) => dispatchDateRange({ type: 'SET_UI_DATES', payload: { endTime: val } });
+  const setAppliedStartDate = (val: string) => dispatchDateRange({ type: 'SET_APPLIED_DATES', payload: { startDate: val, startTime: appliedStartTime, endDate: appliedEndDate, endTime: appliedEndTime } });
+  const setAppliedStartTime = (val: string) => dispatchDateRange({ type: 'SET_APPLIED_DATES', payload: { startDate: appliedStartDate, startTime: val, endDate: appliedEndDate, endTime: appliedEndTime } });
+  const setAppliedEndDate = (val: string) => dispatchDateRange({ type: 'SET_APPLIED_DATES', payload: { startDate: appliedStartDate, startTime: appliedStartTime, endDate: val, endTime: appliedEndTime } });
+  const setAppliedEndTime = (val: string) => dispatchDateRange({ type: 'SET_APPLIED_DATES', payload: { startDate: appliedStartDate, startTime: appliedStartTime, endDate: appliedEndDate, endTime: val } });
 
   // Auto-sync endDate and endTime based on startDate and startTime for all time ranges
   React.useEffect(() => {
@@ -268,48 +318,12 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, startTime, timeRange]);
 
-  // Applied State (what actually gets sent to API)
-  const [appliedStartDate, setAppliedStartDate] = useState(defaultRange.startDate);
-  const [appliedStartTime, setAppliedStartTime] = useState(defaultRange.startTime);
-  const [appliedEndDate, setAppliedEndDate] = useState(defaultRange.endDate);
-  const [appliedEndTime, setAppliedEndTime] = useState(defaultRange.endTime);
-
   // Helper function to calculate time range for a specific chart
   const getChartTimeRange = (chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
-    if (timeRange !== 'fiveMinute') {
-      // For non-hourly views, all charts use the same range
-      return {
-        startDate: combineDateAndTime(appliedStartDate, appliedStartTime),
-        endDate: combineDateAndTime(appliedEndDate, appliedEndTime)
-      };
-    }
-
-    // For hourly view, calculate based on chart-specific offset
-    const offset = hourlyOffsets[chartType];
-    const baseRange = getRealTimeRangeDate('fiveMinute');
-
-    const newDateTime = new Date(baseRange.startDate);
-    newDateTime.setHours(newDateTime.getHours() + offset, 0, 0, 0);
-
-    const newEndDateTime = new Date(newDateTime);
-    newEndDateTime.setMinutes(59, 59, 999);
-
-    const formatDate = (date: Date) => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
-    const formatTime = (date: Date) => {
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      return `${hours}:${minutes}`;
-    };
-
+    // All charts now use the same applied date range
     return {
-      startDate: `${formatDate(newDateTime)} ${formatTime(newDateTime)}:00`,
-      endDate: `${formatDate(newEndDateTime)} ${formatTime(newEndDateTime)}:59`
+      startDate: combineDateAndTime(appliedStartDate, appliedStartTime),
+      endDate: combineDateAndTime(appliedEndDate, appliedEndTime)
     };
   };
 
@@ -353,8 +367,484 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     getDonutData: getDonutDataOriginal,
   } = mainHookData;
 
-  // STEP 1: Override chart data functions to return empty arrays
-  const getTotalChartData = () => [];
+  // STEP 1: Define chart data getter function (will be memoized below)
+  const getOrganicChartDataWithToggle = React.useCallback(() => {
+    // STEP 3: Process sensor readings for chart
+    if (!sensorReadings || sensorReadings.length === 0) {
+      devLog('[Organic Chart] No sensor readings available');
+      return [];
+    }
+
+    devLog(`[Organic Chart] Processing ${sensorReadings.length} sensor readings`);
+
+    // Helper function to calculate volume percentage from 4 sensors
+    const calculateVolumePercentage = (topLeft: number, topRight: number, bottomLeft: number, bottomRight: number): number => {
+      const BIN_HEIGHT = 60; // cm
+
+      // Calculate average of 4 sensors
+      // Example: [49, 48, 37, 7] => 141 / 4 = 35.25
+      const sum = topLeft + topRight + bottomLeft + bottomRight;
+      const avgDistance = sum / 4;
+
+      // Calculate fill height (distance from sensors to trash)
+      // Example: 60 - 35.25 = 24.75
+      const fillHeight = BIN_HEIGHT - avgDistance;
+
+      // Calculate percentage
+      // Example: (24.75 / 60) * 100 = 41.25%
+      const percentage = (fillHeight / BIN_HEIGHT) * 100;
+
+      return Math.max(0, Math.min(100, percentage)); // Clamp between 0-100
+    };
+
+    // Process readings
+    const processedData = sensorReadings.map(reading => {
+      const timestamp = new Date(reading.timestamp);
+      const weight = parseFloat(reading.weight);
+
+      // Parse 4 individual sensor readings
+      const sensorTL = parseFloat(reading.sensor_top_left);
+      const sensorTR = parseFloat(reading.sensor_top_right);
+      const sensorBL = parseFloat(reading.sensor_bottom_left);
+      const sensorBR = parseFloat(reading.sensor_bottom_right);
+
+      // Calculate volume from 4 sensors
+      const volume = (!isNaN(sensorTL) && !isNaN(sensorTR) && !isNaN(sensorBL) && !isNaN(sensorBR))
+        ? calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR)
+        : 0;
+
+      return {
+        id: reading.id,
+        timestamp,
+        timestampString: reading.timestamp, // Keep original string for debugging
+        weight: isNaN(weight) ? 0 : weight,
+        volume,
+        sensors: {
+          topLeft: sensorTL,
+          topRight: sensorTR,
+          bottomLeft: sensorBL,
+          bottomRight: sensorBR
+        }
+      };
+    });
+
+    // Sort by timestamp (oldest first)
+    processedData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+    if (processedData.length > 0) {
+      const first = processedData[0];
+      const last = processedData[processedData.length - 1];
+      devLog(`[Organic Chart] First reading: ID ${first.id}, ${first.timestamp.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' })}`);
+      devLog(`[Organic Chart] Last reading: ID ${last.id}, ${last.timestamp.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' })}`);
+    }
+
+    let chartData: { time: string; fullTimestamp: string; value: number }[] = [];
+
+    if (timeRange === 'hourly') {
+      // DAY VIEW: Show data from Time Period picker range with 15-minute intervals
+      // Parse the applied start date and time from Time Period picker
+      const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
+      const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
+
+      devLog(`[Organic Chart Day View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
+
+      // Group by 15-minute intervals, select latest reading per interval
+      const groupBy15Min: Record<string, typeof processedData[0]> = {};
+
+      processedData.forEach(item => {
+        // Use Asia/Jakarta timezone consistently
+        const jakartaTimeStr = item.timestamp.toLocaleString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Jakarta'
+        });
+        const [hourStr, minuteStr] = jakartaTimeStr.split(':');
+        const minute = parseInt(minuteStr, 10);
+
+        // Round down to nearest 15-minute interval
+        const roundedMinute = Math.floor(minute / 15) * 15;
+
+        const intervalKey = item.timestamp.toLocaleString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Jakarta'
+        }) + `:${String(roundedMinute).padStart(2, '0')}`;
+
+        if (!groupBy15Min[intervalKey] || item.timestamp > groupBy15Min[intervalKey].timestamp) {
+          groupBy15Min[intervalKey] = item;
+        }
+      });
+
+      // Filter data based on Time Period picker selection
+      const filteredData = Object.values(groupBy15Min).filter(item => {
+        return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
+      });
+
+      devLog(`[Organic Chart Day View] Filtered ${filteredData.length} data points within Time Period range`);
+
+      // Create a map of existing data by hour and 15-minute interval using Asia/Jakarta timezone
+      const dataByInterval = new Map<string, typeof processedData[0]>();
+      filteredData.forEach(item => {
+        // Use Asia/Jakarta timezone to extract hour and minute consistently
+        const jakartaTimeStr = item.timestamp.toLocaleString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Jakarta'
+        });
+        const [hourStr, minuteStr] = jakartaTimeStr.split(':');
+        const minute = parseInt(minuteStr, 10);
+        const roundedMinute = Math.floor(minute / 15) * 15;
+        const key = `${hourStr}:${String(roundedMinute).padStart(2, '0')}`;
+
+        if (!dataByInterval.has(key) || item.timestamp > dataByInterval.get(key)!.timestamp) {
+          dataByInterval.set(key, item);
+        }
+      });
+
+      // Generate all 15-minute intervals for 24 hours (96 intervals: 24 hours * 4)
+      const startHour = startDateTime.getHours();
+      const endHour = endDateTime.getHours();
+      const targetDate = new Date(startDateTime);
+      targetDate.setHours(0, 0, 0, 0);
+
+      chartData = [];
+
+      for (let hour = startHour; hour <= endHour; hour++) {
+        for (let minute of [0, 15, 30, 45]) {
+          const key = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+          const data = dataByInterval.get(key);
+
+          if (data) {
+            // Has data for this interval
+            chartData.push({
+              time: data.timestamp.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+                timeZone: 'Asia/Jakarta'
+              }),
+              fullTimestamp: `${data.timestamp.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                timeZone: 'Asia/Jakarta'
+              })} ${data.timestamp.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false,
+                timeZone: 'Asia/Jakarta'
+              })} (ID #${data.id})`,
+              value: organicToggle === "weight" ? data.weight : data.volume
+            });
+          } else {
+            // No data for this interval, create placeholder with value 0
+            const placeholderDate = new Date(targetDate);
+            placeholderDate.setHours(hour, minute, 0, 0);
+
+            chartData.push({
+              time: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+              fullTimestamp: `${targetDate.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                timeZone: 'Asia/Jakarta'
+              })} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} (No data)`,
+              value: 0
+            });
+          }
+        }
+      }
+
+      devLog(`[Organic Chart Day View] Generated ${chartData.length} data points with 15-minute intervals`);
+
+    } else if (timeRange === 'daily') {
+      // WEEK VIEW: Show data from Time Period picker range
+      // Parse the applied start date and time from Time Period picker
+      const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
+      const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
+
+      devLog(`[Organic Chart Week View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
+
+      // Group by HOUR, select latest reading per hour
+      const groupByHour: Record<string, typeof processedData[0]> = {};
+
+      processedData.forEach(item => {
+        const hourKey = item.timestamp.toLocaleString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Jakarta'
+        });
+
+        if (!groupByHour[hourKey] || item.timestamp > groupByHour[hourKey].timestamp) {
+          groupByHour[hourKey] = item;
+        }
+      });
+
+      const hourData = Object.values(groupByHour).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+      // Filter data based on Time Period picker selection
+      const filteredData = hourData.filter(item => {
+        return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
+      });
+
+      devLog(`[Organic Chart Week View] Filtered ${filteredData.length} data points within Time Period range`);
+
+      chartData = filteredData.map(item => ({
+        time: item.timestamp.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          timeZone: 'Asia/Jakarta'
+        }) + ' ' + item.timestamp.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Jakarta'
+        }) + ':00',
+        fullTimestamp: `${item.timestamp.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          timeZone: 'Asia/Jakarta'
+        })} ${item.timestamp.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Jakarta'
+        })} (ID #${item.id})`,
+        value: organicToggle === "weight" ? item.weight : item.volume
+      }));
+
+    } else if (timeRange === 'weekly') {
+      // MONTH VIEW: Show data from Time Period picker range
+      // Parse the applied start date and time from Time Period picker
+      const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
+      const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
+
+      devLog(`[Organic Chart Month View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
+
+      // Group by DAY, select latest reading per day
+      const groupByDay: Record<string, typeof processedData[0]> = {};
+
+      processedData.forEach(item => {
+        const dayKey = item.timestamp.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          timeZone: 'Asia/Jakarta'
+        });
+
+        if (!groupByDay[dayKey] || item.timestamp > groupByDay[dayKey].timestamp) {
+          groupByDay[dayKey] = item;
+        }
+      });
+
+      const dayData = Object.values(groupByDay).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+      // Filter data based on Time Period picker selection
+      const filteredData = dayData.filter(item => {
+        return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
+      });
+
+      devLog(`[Organic Chart Month View] Filtered ${filteredData.length} data points within Time Period range`);
+
+      chartData = filteredData.map(item => ({
+        time: item.timestamp.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          timeZone: 'Asia/Jakarta'
+        }),
+        fullTimestamp: `${item.timestamp.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          timeZone: 'Asia/Jakarta'
+        })} ${item.timestamp.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Jakarta'
+        })} (ID #${item.id})`,
+        value: organicToggle === "weight" ? item.weight : item.volume
+      }));
+    }
+
+    return chartData;
+  }, [sensorReadings, appliedStartDate, appliedEndDate, appliedStartTime, appliedEndTime, organicToggle, timeRange]);
+
+  // Memoized chart data calculations
+  const organicChartData = React.useMemo(() => {
+    return getOrganicChartDataWithToggle();
+  }, [getOrganicChartDataWithToggle]);
+
+  // Total Monitoring - Sum of all bin types (Residue + Organic + Anorganic)
+  // Total Monitoring has its own independent toggle for Weight/Volume
+  const totalChartData = React.useMemo(() => {
+    // For now, only Organic has sensor data
+    // Total = Residue + Organic + Anorganic (when sensors are available)
+
+    // We need to recalculate from sensor readings using totalToggle (not organicToggle)
+    if (!sensorReadings || sensorReadings.length === 0) {
+      return [];
+    }
+
+    // Helper function to calculate volume percentage from 4 sensors
+    const calculateVolumePercentage = (topLeft: number, topRight: number, bottomLeft: number, bottomRight: number): number => {
+      const BIN_HEIGHT = 60; // cm
+      const sum = topLeft + topRight + bottomLeft + bottomRight;
+      const avgDistance = sum / 4;
+      const fillHeight = BIN_HEIGHT - avgDistance;
+      const percentage = (fillHeight / BIN_HEIGHT) * 100;
+      return Math.max(0, Math.min(100, percentage));
+    };
+
+    // Process readings
+    const processedData = sensorReadings.map(reading => {
+      const timestamp = new Date(reading.timestamp);
+      const weight = parseFloat(reading.weight);
+      const sensorTL = parseFloat(reading.sensor_top_left);
+      const sensorTR = parseFloat(reading.sensor_top_right);
+      const sensorBL = parseFloat(reading.sensor_bottom_left);
+      const sensorBR = parseFloat(reading.sensor_bottom_right);
+      const volume = (!isNaN(sensorTL) && !isNaN(sensorTR) && !isNaN(sensorBL) && !isNaN(sensorBR))
+        ? calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR)
+        : 0;
+
+      return {
+        id: reading.id,
+        timestamp,
+        weight: isNaN(weight) ? 0 : weight,
+        volume
+      };
+    });
+
+    // Sort by timestamp
+    processedData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+    // Apply same time range filtering and grouping logic based on timeRange
+    const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
+    const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
+
+    let chartData: { time: string; fullTimestamp: string; value: number }[] = [];
+
+    if (timeRange === 'hourly') {
+      // DAY VIEW - 15-minute intervals
+      const groupBy15Min: Record<string, typeof processedData[0]> = {};
+      processedData.forEach(item => {
+        const jakartaTimeStr = item.timestamp.toLocaleString('en-US', {
+          hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta'
+        });
+        const [hourStr, minuteStr] = jakartaTimeStr.split(':');
+        const minute = parseInt(minuteStr, 10);
+        const roundedMinute = Math.floor(minute / 15) * 15;
+        const intervalKey = item.timestamp.toLocaleString('en-US', {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta'
+        }) + `:${String(roundedMinute).padStart(2, '0')}`;
+
+        if (!groupBy15Min[intervalKey] || item.timestamp > groupBy15Min[intervalKey].timestamp) {
+          groupBy15Min[intervalKey] = item;
+        }
+      });
+
+      const filteredData = Object.values(groupBy15Min).filter(item => item.timestamp >= startDateTime && item.timestamp <= endDateTime);
+
+      const dataByInterval = new Map<string, typeof processedData[0]>();
+      filteredData.forEach(item => {
+        const jakartaTimeStr = item.timestamp.toLocaleString('en-US', {
+          hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta'
+        });
+        const [hourStr, minuteStr] = jakartaTimeStr.split(':');
+        const minute = parseInt(minuteStr, 10);
+        const roundedMinute = Math.floor(minute / 15) * 15;
+        const key = `${hourStr}:${String(roundedMinute).padStart(2, '0')}`;
+        if (!dataByInterval.has(key) || item.timestamp > dataByInterval.get(key)!.timestamp) {
+          dataByInterval.set(key, item);
+        }
+      });
+
+      const startHour = startDateTime.getHours();
+      const endHour = endDateTime.getHours();
+      const targetDate = new Date(startDateTime);
+      targetDate.setHours(0, 0, 0, 0);
+
+      for (let hour = startHour; hour <= endHour; hour++) {
+        for (let minute of [0, 15, 30, 45]) {
+          const key = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+          const data = dataByInterval.get(key);
+
+          if (data) {
+            chartData.push({
+              time: data.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }),
+              fullTimestamp: `${data.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' })} ${data.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })} (ID #${data.id})`,
+              value: totalToggle === "weight" ? data.weight : data.volume
+            });
+          } else {
+            const placeholderDate = new Date(targetDate);
+            placeholderDate.setHours(hour, minute, 0, 0);
+            chartData.push({
+              time: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+              fullTimestamp: `${targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' })} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} (No data)`,
+              value: 0
+            });
+          }
+        }
+      }
+
+    } else if (timeRange === 'daily') {
+      // WEEK VIEW - Hourly intervals
+      const groupByHour: Record<string, typeof processedData[0]> = {};
+      processedData.forEach(item => {
+        const hourKey = item.timestamp.toLocaleString('en-US', {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta'
+        });
+        if (!groupByHour[hourKey] || item.timestamp > groupByHour[hourKey].timestamp) {
+          groupByHour[hourKey] = item;
+        }
+      });
+
+      const hourData = Object.values(groupByHour).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      const filteredData = hourData.filter(item => item.timestamp >= startDateTime && item.timestamp <= endDateTime);
+
+      chartData = filteredData.map(item => ({
+        time: item.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' }) + ' ' + item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }) + ':00',
+        fullTimestamp: `${item.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' })} ${item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })} (ID #${item.id})`,
+        value: totalToggle === "weight" ? item.weight : item.volume
+      }));
+
+    } else if (timeRange === 'weekly') {
+      // MONTH VIEW - Daily intervals
+      const groupByDay: Record<string, typeof processedData[0]> = {};
+      processedData.forEach(item => {
+        const dayKey = item.timestamp.toLocaleDateString('en-US', {
+          year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Jakarta'
+        });
+        if (!groupByDay[dayKey] || item.timestamp > groupByDay[dayKey].timestamp) {
+          groupByDay[dayKey] = item;
+        }
+      });
+
+      const dayData = Object.values(groupByDay).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      const filteredData = dayData.filter(item => item.timestamp >= startDateTime && item.timestamp <= endDateTime);
+
+      chartData = filteredData.map(item => ({
+        time: item.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' }),
+        fullTimestamp: `${item.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' })} ${item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })} (ID #${item.id})`,
+        value: totalToggle === "weight" ? item.weight : item.volume
+      }));
+    }
+
+    return chartData;
+  }, [sensorReadings, appliedStartDate, appliedEndDate, appliedStartTime, appliedEndTime, totalToggle, timeRange]);
+
+  const getTotalChartData = () => totalChartData;
+
   const getVolumeBarData = () => [];
   const getDonutData = () => [];
 
@@ -376,53 +866,165 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     setAppliedEndDate(newRange.endDate);
     setAppliedEndTime(newRange.endTime);
 
-    console.log("Time range changed to:", newTimeRange, newRange);
+    devLog("Time range changed to:", newTimeRange, newRange);
   };
 
-  // Navigate hours for a specific chart
-  const handlePreviousHour = (chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
-    if (timeRange !== 'fiveMinute') return;
+  // Optimized: Memoize navigation functions
+  const handlePreviousPeriod = React.useCallback((chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
+    // Calculate new date range based on time range type
+    const currentStart = new Date(`${appliedStartDate}T${appliedStartTime}`);
+    const currentEnd = new Date(`${appliedEndDate}T${appliedEndTime}`);
 
-    setHourlyOffsets(prev => ({
-      ...prev,
-      [chartType]: prev[chartType] - 1
-    }));
-  };
+    switch (timeRange) {
+      case 'hourly': // Day view - go back 1 day
+        currentStart.setDate(currentStart.getDate() - 1);
+        currentEnd.setDate(currentEnd.getDate() - 1);
+        break;
 
-  const handleNextHour = (chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
-    if (timeRange !== 'fiveMinute') return;
+      case 'daily': // Week view - go back 7 days
+        currentStart.setDate(currentStart.getDate() - 7);
+        currentEnd.setDate(currentEnd.getDate() - 7);
+        break;
 
-    setHourlyOffsets(prev => ({
-      ...prev,
-      [chartType]: prev[chartType] + 1
-    }));
-  };
+      case 'weekly': // Month view - go back 30 days
+        currentStart.setDate(currentStart.getDate() - 30);
+        currentEnd.setDate(currentEnd.getDate() - 30);
+        break;
+    }
+
+    // Update applied dates (this will trigger chart refresh)
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const formatTime = (date: Date) => {
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    };
+
+    // Optimized: Batch all state updates into one dispatch
+    dispatchDateRange({
+      type: 'SET_ALL_DATES',
+      payload: {
+        startDate: formatDate(currentStart),
+        startTime: formatTime(currentStart),
+        endDate: formatDate(currentEnd),
+        endTime: formatTime(currentEnd),
+        appliedStartDate: formatDate(currentStart),
+        appliedStartTime: formatTime(currentStart),
+        appliedEndDate: formatDate(currentEnd),
+        appliedEndTime: formatTime(currentEnd),
+      }
+    });
+
+    devLog(`[Navigation] Previous period: ${formatDate(currentStart)} ${formatTime(currentStart)} to ${formatDate(currentEnd)} ${formatTime(currentEnd)}`);
+  }, [appliedStartDate, appliedStartTime, appliedEndDate, appliedEndTime, timeRange, dispatchDateRange]);
+
+  const handleNextPeriod = React.useCallback((chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
+    // Calculate new date range based on time range type
+    const currentStart = new Date(`${appliedStartDate}T${appliedStartTime}`);
+    const currentEnd = new Date(`${appliedEndDate}T${appliedEndTime}`);
+
+    switch (timeRange) {
+      case 'hourly': // Day view - go forward 1 day
+        currentStart.setDate(currentStart.getDate() + 1);
+        currentEnd.setDate(currentEnd.getDate() + 1);
+        break;
+
+      case 'daily': // Week view - go forward 7 days
+        currentStart.setDate(currentStart.getDate() + 7);
+        currentEnd.setDate(currentEnd.getDate() + 7);
+        break;
+
+      case 'weekly': // Month view - go forward 30 days
+        currentStart.setDate(currentStart.getDate() + 30);
+        currentEnd.setDate(currentEnd.getDate() + 30);
+        break;
+    }
+
+    // Update applied dates (this will trigger chart refresh)
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const formatTime = (date: Date) => {
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    };
+
+    // Optimized: Batch all state updates into one dispatch
+    dispatchDateRange({
+      type: 'SET_ALL_DATES',
+      payload: {
+        startDate: formatDate(currentStart),
+        startTime: formatTime(currentStart),
+        endDate: formatDate(currentEnd),
+        endTime: formatTime(currentEnd),
+        appliedStartDate: formatDate(currentStart),
+        appliedStartTime: formatTime(currentStart),
+        appliedEndDate: formatDate(currentEnd),
+        appliedEndTime: formatTime(currentEnd),
+      }
+    });
+
+    devLog(`[Navigation] Next period: ${formatDate(currentStart)} ${formatTime(currentStart)} to ${formatDate(currentEnd)} ${formatTime(currentEnd)}`);
+  }, [appliedStartDate, appliedStartTime, appliedEndDate, appliedEndTime, timeRange, dispatchDateRange]);
 
   // Get formatted time display for a chart
   const getChartTimeDisplay = (chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
-    // For organic chart with sensor data in hourly view, use Time Period picker selection
-    if (chartType === 'organic' && timeRange === 'fiveMinute') {
-      // Use the applied Time Period picker values
-      const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
-      const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
-
-      // Format for display
-      const dateStr = startDateTime.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        timeZone: 'Asia/Jakarta'
-      });
-
-      const startTime = `${dateStr} ${appliedStartTime}`;
-      const endTime = `${appliedEndTime}`;
-
-      return { startTime, endTime };
-    }
-
     const range = getChartTimeRange(chartType);
-    const startTime = range.startDate.split(' ')[1]?.substring(0, 5) || '00:00';
-    const endTime = range.endDate.split(' ')[1]?.substring(0, 5) || '00:59';
-    return { startTime, endTime };
+    const startDateTime = new Date(range.startDate);
+    const endDateTime = new Date(range.endDate);
+
+    // Format based on time range type
+    switch (timeRange) {
+      case 'hourly': // Day view - show full date
+        const dayStr = startDateTime.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          timeZone: 'Asia/Jakarta'
+        });
+        return { startTime: `${dayStr} 00:00`, endTime: '23:59' };
+
+      case 'daily': // Week view - show date range
+        const weekStart = startDateTime.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          timeZone: 'Asia/Jakarta'
+        });
+        const weekEnd = endDateTime.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          timeZone: 'Asia/Jakarta'
+        });
+        return { startTime: weekStart, endTime: weekEnd };
+
+      case 'weekly': // Month view - show date range
+        const monthStart = startDateTime.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          timeZone: 'Asia/Jakarta'
+        });
+        const monthEnd = endDateTime.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          timeZone: 'Asia/Jakarta'
+        });
+        return { startTime: monthStart, endTime: monthEnd };
+
+      default:
+        const defaultStart = range.startDate.split(' ')[1]?.substring(0, 5) || '00:00';
+        const defaultEnd = range.endDate.split(' ')[1]?.substring(0, 5) || '00:59';
+        return { startTime: defaultStart, endTime: defaultEnd };
+    }
   };
 
   const handleApplyDateRange = () => {
@@ -432,7 +1034,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     setAppliedEndDate(endDate);
     setAppliedEndTime(endTime);
 
-    console.log("Date range applied:", {
+    devLog("Date range applied:", {
       startDate,
       startTime,
       endDate,
@@ -657,7 +1259,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
         downloadCSV(csvContent, filename);
 
         setExportStatus('Download complete!');
-        console.log(`Exported ${period} ${categoryLabel} data for ${trashBinName} (${response.data.length} records)`);
+        devLog(`Exported ${period} ${categoryLabel} data for ${trashBinName} (${response.data.length} records)`);
 
         // Clear status after 2 seconds
         setTimeout(() => {
@@ -672,7 +1274,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
         }, 3000);
       }
     } catch (error) {
-      console.error('Export error:', error);
+      devError('Export error:', error);
       setExportStatus('Export failed. Please try again.');
       setTimeout(() => {
         setIsExporting(false);
@@ -742,14 +1344,16 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     // });
   };
 
-  const getOrganicChartDataWithToggle = () => {
+  // Removed duplicate function - now defined above with useCallback
+
+  /* const getOrganicChartDataWithToggle = () => {
     // STEP 3: Process sensor readings for chart
     if (!sensorReadings || sensorReadings.length === 0) {
-      console.log('[Organic Chart] No sensor readings available');
+      devLog('[Organic Chart] No sensor readings available');
       return [];
     }
 
-    console.log(`[Organic Chart] Processing ${sensorReadings.length} sensor readings`);
+    devLog(`[Organic Chart] Processing ${sensorReadings.length} sensor readings`);
 
     // Helper function to calculate volume percentage from 4 sensors
     const calculateVolumePercentage = (topLeft: number, topRight: number, bottomLeft: number, bottomRight: number): number => {
@@ -808,8 +1412,8 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     if (processedData.length > 0) {
       const first = processedData[0];
       const last = processedData[processedData.length - 1];
-      console.log(`[Organic Chart] First reading: ID ${first.id}, ${first.timestamp.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' })}`);
-      console.log(`[Organic Chart] Last reading: ID ${last.id}, ${last.timestamp.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' })}`);
+      devLog(`[Organic Chart] First reading: ID ${first.id}, ${first.timestamp.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' })}`);
+      devLog(`[Organic Chart] Last reading: ID ${last.id}, ${last.timestamp.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' })}`);
     }
 
     let chartData: { time: string; fullTimestamp: string; value: number }[] = [];
@@ -820,10 +1424,10 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
       const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
 
-      console.log(`[Organic Chart Hour View] Time Period Selection:`);
-      console.log(`  Start: ${appliedStartDate} ${appliedStartTime} => ${startDateTime.toISOString()}`);
-      console.log(`  End: ${appliedEndDate} ${appliedEndTime} => ${endDateTime.toISOString()}`);
-      console.log(`  Total sensor readings available: ${processedData.length}`);
+      devLog(`[Organic Chart Hour View] Time Period Selection:`);
+      devLog(`  Start: ${appliedStartDate} ${appliedStartTime} => ${startDateTime.toISOString()}`);
+      devLog(`  End: ${appliedEndDate} ${appliedEndTime} => ${endDateTime.toISOString()}`);
+      devLog(`  Total sensor readings available: ${processedData.length}`);
 
       // Group by MINUTE, select latest reading per minute
       const groupByMinute: Record<string, typeof processedData[0]> = {};
@@ -846,10 +1450,10 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
 
       const minuteData = Object.values(groupByMinute).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-      console.log(`  Grouped to ${minuteData.length} minute intervals`);
+      devLog(`  Grouped to ${minuteData.length} minute intervals`);
       if (minuteData.length > 0) {
-        console.log(`  First minute data: ${minuteData[0].timestamp.toISOString()}`);
-        console.log(`  Last minute data: ${minuteData[minuteData.length - 1].timestamp.toISOString()}`);
+        devLog(`  First minute data: ${minuteData[0].timestamp.toISOString()}`);
+        devLog(`  Last minute data: ${minuteData[minuteData.length - 1].timestamp.toISOString()}`);
       }
 
       // Filter data based on Time Period picker selection
@@ -858,13 +1462,13 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
         return isInRange;
       });
 
-      console.log(`  Filtered to ${filteredData.length} data points within Time Period range`);
+      devLog(`  Filtered to ${filteredData.length} data points within Time Period range`);
       if (filteredData.length > 0) {
-        console.log(`  First filtered: ${filteredData[0].timestamp.toISOString()}`);
-        console.log(`  Last filtered: ${filteredData[filteredData.length - 1].timestamp.toISOString()}`);
+        devLog(`  First filtered: ${filteredData[0].timestamp.toISOString()}`);
+        devLog(`  Last filtered: ${filteredData[filteredData.length - 1].timestamp.toISOString()}`);
       } else if (hasMoreSensorData && !sensorDataLoading) {
         // No data found in current range, try fetching more historical data
-        console.log(`  No data found, fetching more historical data (offset: ${sensorDataOffset})`);
+        devLog(`  No data found, fetching more historical data (offset: ${sensorDataOffset})`);
         fetchSensorReadings(sensorDataOffset, true);
       }
 
@@ -874,7 +1478,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
         const targetDate = new Date(startDateTime);
         targetDate.setHours(0, 0, 0, 0);
 
-        console.log(`[Organic Chart] Showing data for ${targetDate.toLocaleDateString('en-US')} ${targetHour}:00-${targetHour}:59`);
+        devLog(`[Organic Chart] Showing data for ${targetDate.toLocaleDateString('en-US')} ${targetHour}:00-${targetHour}:59`);
 
         // Create a map of existing data by minute
         const dataByMinute = new Map<number, typeof processedData[0]>();
@@ -933,7 +1537,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
       const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
 
-      console.log(`[Organic Chart Day View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
+      devLog(`[Organic Chart Day View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
 
       // Group by 15-minute intervals, select latest reading per interval
       const groupBy15Min: Record<string, typeof processedData[0]> = {};
@@ -960,7 +1564,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
         return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
       });
 
-      console.log(`[Organic Chart Day View] Filtered ${filteredData.length} data points within Time Period range`);
+      devLog(`[Organic Chart Day View] Filtered ${filteredData.length} data points within Time Period range`);
 
       // Create a map of existing data by hour and 15-minute interval
       const dataByInterval = new Map<string, typeof processedData[0]>();
@@ -1024,7 +1628,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
         }
       }
 
-      console.log(`[Organic Chart Day View] Generated ${chartData.length} data points with 15-minute intervals`);
+      devLog(`[Organic Chart Day View] Generated ${chartData.length} data points with 15-minute intervals`);
 
     } else if (timeRange === 'daily') {
       // WEEK VIEW: Show data from Time Period picker range
@@ -1032,7 +1636,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
       const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
 
-      console.log(`[Organic Chart Week View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
+      devLog(`[Organic Chart Week View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
 
       // Group by HOUR, select latest reading per hour
       const groupByHour: Record<string, typeof processedData[0]> = {};
@@ -1059,7 +1663,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
         return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
       });
 
-      console.log(`[Organic Chart Week View] Filtered ${filteredData.length} data points within Time Period range`);
+      devLog(`[Organic Chart Week View] Filtered ${filteredData.length} data points within Time Period range`);
 
       chartData = filteredData.map(item => ({
         time: item.timestamp.toLocaleDateString('en-US', {
@@ -1091,7 +1695,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
       const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
 
-      console.log(`[Organic Chart Month View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
+      devLog(`[Organic Chart Month View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
 
       // Group by DAY, select latest reading per day
       const groupByDay: Record<string, typeof processedData[0]> = {};
@@ -1116,7 +1720,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
         return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
       });
 
-      console.log(`[Organic Chart Month View] Filtered ${filteredData.length} data points within Time Period range`);
+      devLog(`[Organic Chart Month View] Filtered ${filteredData.length} data points within Time Period range`);
 
       chartData = filteredData.map(item => ({
         time: item.timestamp.toLocaleDateString('en-US', {
@@ -1140,7 +1744,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     }
 
     return chartData;
-  };
+  }; */
 
   // STEP 3: Calculate current organic values from latest sensor reading
   const getCurrentOrganicData = () => {
@@ -1263,7 +1867,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       bgColor: 'bg-gradient-to-br from-green-500 to-green-600',
       toggle: organicToggle,
       setToggle: setOrganicToggle,
-      chartData: getOrganicChartDataWithToggle(),
+      chartData: organicChartData,
       currentData: getCurrentOrganicData(), // STEP 3: Use real sensor data
       titleColor: 'text-green-600',
       cardBg: 'bg-green-50',
@@ -1306,11 +1910,9 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center gap-2">
           <h3 className={`text-sm font-bold ${binData.titleColor}`}>{binData.title}</h3>
-          {timeRange === 'fiveMinute' && (
-            <span className="text-xs text-gray-600 font-semibold bg-gray-50 px-2 py-0.5 rounded">
-              {getChartTimeDisplay(binData.chartType).startTime} - {getChartTimeDisplay(binData.chartType).endTime}
-            </span>
-          )}
+          <span className="text-xs text-gray-600 font-semibold bg-gray-50 px-2 py-0.5 rounded">
+            {getChartTimeDisplay(binData.chartType).startTime} - {getChartTimeDisplay(binData.chartType).endTime}
+          </span>
         </div>
         <ToggleButton
           value={binData.toggle}
@@ -1327,30 +1929,27 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
             height={120}
             yAxisDomain={binData.toggle === "volume" ? [0, 100] : undefined}
             valueUnit={binData.toggle === "volume" ? "%" : undefined}
-            xAxisInterval={timeRange === 'fiveMinute' ? 4 : undefined}
           />
 
-          {timeRange === 'fiveMinute' && (
-            <div className="flex justify-center items-center gap-3 mt-2">
-              {/* Left Arrow */}
-              <button
-                onClick={() => handlePreviousHour(binData.chartType)}
-                className="bg-white hover:bg-gray-50 shadow-sm rounded-full p-1.5 transition-all hover:scale-110 border border-gray-200"
-                aria-label="Previous hour"
-              >
-                <ChevronLeft className="w-4 h-4 text-gray-600" />
-              </button>
+          <div className="flex justify-center items-center gap-3 mt-2">
+            {/* Left Arrow */}
+            <button
+              onClick={() => handlePreviousPeriod(binData.chartType)}
+              className="bg-white hover:bg-gray-50 shadow-sm rounded-full p-1.5 transition-all hover:scale-110 border border-gray-200"
+              aria-label="Previous period"
+            >
+              <ChevronLeft className="w-4 h-4 text-gray-600" />
+            </button>
 
-              {/* Right Arrow */}
-              <button
-                onClick={() => handleNextHour(binData.chartType)}
-                className="bg-white hover:bg-gray-50 shadow-sm rounded-full p-1.5 transition-all hover:scale-110 border border-gray-200"
-                aria-label="Next hour"
-              >
-                <ChevronRight className="w-4 h-4 text-gray-600" />
-              </button>
-            </div>
-          )}
+            {/* Right Arrow */}
+            <button
+              onClick={() => handleNextPeriod(binData.chartType)}
+              className="bg-white hover:bg-gray-50 shadow-sm rounded-full p-1.5 transition-all hover:scale-110 border border-gray-200"
+              aria-label="Next period"
+            >
+              <ChevronRight className="w-4 h-4 text-gray-600" />
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-1">
@@ -1735,6 +2334,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
               onEndTimeChange={setEndTime}
               onTimeRangeChange={handleTimeRangeChange}
               onApply={handleApplyDateRange}
+              excludeRanges={['fiveMinute']}
             />
           </div>
 
@@ -1743,11 +2343,9 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-gray-800">Total Monitoring</h3>
-                {timeRange === 'fiveMinute' && (
-                  <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded">
-                    {getChartTimeDisplay('total').startTime} - {getChartTimeDisplay('total').endTime}
-                  </span>
-                )}
+                <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded">
+                  {getChartTimeDisplay('total').startTime} - {getChartTimeDisplay('total').endTime}
+                </span>
               </div>
               <ToggleButton
                 value={totalToggle}
@@ -1757,7 +2355,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
               />
             </div>
 
-            {/* Chart with navigation arrows for Hourly view */}
+            {/* Chart with navigation arrows for all time ranges */}
             <div className="relative">
               <ChartComponent
                 data={getTotalChartData()}
@@ -1765,27 +2363,25 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
                 height={180}
               />
 
-              {timeRange === 'fiveMinute' && (
-                <div className="flex justify-center items-center gap-4 mt-2">
-                  {/* Left Arrow */}
-                  <button
-                    onClick={() => handlePreviousHour('total')}
-                    className="bg-white hover:bg-blue-50 shadow-md rounded-full p-2 transition-all hover:scale-110 border border-blue-200"
-                    aria-label="Previous hour"
-                  >
-                    <ChevronLeft className="w-5 h-5 text-blue-600" />
-                  </button>
+              <div className="flex justify-center items-center gap-4 mt-2">
+                {/* Left Arrow */}
+                <button
+                  onClick={() => handlePreviousPeriod('total')}
+                  className="bg-white hover:bg-blue-50 shadow-md rounded-full p-2 transition-all hover:scale-110 border border-blue-200"
+                  aria-label="Previous period"
+                >
+                  <ChevronLeft className="w-5 h-5 text-blue-600" />
+                </button>
 
-                  {/* Right Arrow */}
-                  <button
-                    onClick={() => handleNextHour('total')}
-                    className="bg-white hover:bg-blue-50 shadow-md rounded-full p-2 transition-all hover:scale-110 border border-blue-200"
-                    aria-label="Next hour"
-                  >
-                    <ChevronRight className="w-5 h-5 text-blue-600" />
-                  </button>
-                </div>
-              )}
+                {/* Right Arrow */}
+                <button
+                  onClick={() => handleNextPeriod('total')}
+                  className="bg-white hover:bg-blue-50 shadow-md rounded-full p-2 transition-all hover:scale-110 border border-blue-200"
+                  aria-label="Next period"
+                >
+                  <ChevronRight className="w-5 h-5 text-blue-600" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

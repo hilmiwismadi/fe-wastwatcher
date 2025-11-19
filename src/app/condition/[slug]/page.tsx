@@ -309,8 +309,8 @@ export default function ConditionPage({ params }: PageProps) {
                 <code className="bg-green-50 px-1.5 py-0.5 rounded text-xs break-all">{organicTopic}</code>
               </div>
               <div className="flex items-center gap-1 flex-wrap">
-                <span className="font-semibold text-blue-600">♻️ Anorganic:</span>
-                <code className="bg-blue-50 px-1.5 py-0.5 rounded text-xs break-all">{anorganicTopic}</code>
+                <span className="font-semibold text-yellow-600">♻️ Anorganic:</span>
+                <code className="bg-yellow-50 px-1.5 py-0.5 rounded text-xs break-all">{anorganicTopic}</code>
               </div>
             </div>
             {location && (
@@ -383,14 +383,14 @@ export default function ConditionPage({ params }: PageProps) {
           {/* Anorganic Section */}
           <div className="flex flex-col gap-3 sm:gap-4">
             {/* Anorganic Weight */}
-            <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-3 sm:p-4">
+            <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-3 sm:p-4">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <h3 className="text-xs sm:text-sm font-semibold text-blue-700 mb-1">♻️ Anorganic</h3>
-                  <p className="text-xl sm:text-2xl font-bold text-blue-900">
+                  <h3 className="text-xs sm:text-sm font-semibold text-yellow-700 mb-1">♻️ Anorganic</h3>
+                  <p className="text-xl sm:text-2xl font-bold text-yellow-900">
                     {anorganicSensors?.weight ? `${anorganicSensors.weight.toFixed(2)} kg` : '--'}
                   </p>
-                  <p className="text-xs text-blue-600 mt-0.5">
+                  <p className="text-xs text-yellow-600 mt-0.5">
                     {anorganicSensors?.weight && anorganicHistory.length >= 2 ?
                       (() => {
                         const previousWeight = anorganicHistory[anorganicHistory.length - 2]?.weight || 0
@@ -413,15 +413,15 @@ export default function ConditionPage({ params }: PageProps) {
 
             {/* Anorganic Chart */}
             <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-              <h3 className="text-xs sm:text-sm font-semibold text-blue-600 mb-2">Anorganic Distance Chart</h3>
+              <h3 className="text-xs sm:text-sm font-semibold text-yellow-600 mb-2">Anorganic Distance Chart</h3>
               {anorganicChartData.length > 0 ? (
                 <ChartComponent
                   data={anorganicChartData}
-                  bgColor="bg-blue-100"
+                  bgColor="bg-yellow-100"
                   height={150}
                 />
               ) : (
-                <div className="bg-blue-50 rounded-lg p-4 text-center text-sm text-gray-500">
+                <div className="bg-yellow-50 rounded-lg p-4 text-center text-sm text-gray-500">
                   No historical data available
                 </div>
               )}
@@ -481,7 +481,7 @@ export default function ConditionPage({ params }: PageProps) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6 md:mb-8">
           {/* Anorganic History */}
           <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-            <h3 className="text-xs sm:text-sm font-semibold text-blue-600 mb-2">♻️ Anorganic History</h3>
+            <h3 className="text-xs sm:text-sm font-semibold text-yellow-600 mb-2">♻️ Anorganic History</h3>
             <div className="text-xs text-gray-500 space-y-1 max-h-32 sm:max-h-40 overflow-y-auto">
               {anorganicHistory.length === 0 ? (
                 <p className="text-orange-500">No data yet</p>

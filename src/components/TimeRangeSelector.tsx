@@ -8,19 +8,24 @@ interface TimeRangeSelectorProps {
   selectedRange: TimeRange;
   onRangeChange: (range: TimeRange) => void;
   className?: string;
+  excludeRanges?: TimeRange[]; // Optional array of ranges to exclude
 }
 
 export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
   selectedRange,
   onRangeChange,
-  className = ""
+  className = "",
+  excludeRanges = []
 }) => {
-  const timeRanges: { value: TimeRange; label: string; description: string }[] = [
+  const allTimeRanges: { value: TimeRange; label: string; description: string }[] = [
     { value: 'fiveMinute', label: 'Hourly', description: '1 hour, 5-min intervals (XX:00-XX:55)' },
     { value: 'hourly', label: 'Day', description: '24 hours, hourly data (00:00-23:00)' },
     { value: 'daily', label: 'Week', description: '7 days of data' },
     { value: 'weekly', label: 'Month', description: '30 days of data' }
   ];
+
+  // Filter out excluded ranges
+  const timeRanges = allTimeRanges.filter(range => !excludeRanges.includes(range.value));
 
   return (
     <div className={`flex flex-wrap gap-2 ${className}`}>
