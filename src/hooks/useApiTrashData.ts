@@ -39,97 +39,65 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
     }
   }, [binId]);
 
-  // Fetch time-period filtered data for charts
+  // P1.1 OPTIMIZATION: Fetch time-period filtered data using combined endpoint
   const fetchTimeRangeData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // If binId is provided, get device IDs for this specific bin
-      let organicDeviceId, anorganicDeviceId, residueDeviceId;
-      if (binId && binSpecificDevices.length > 0) {
-        organicDeviceId = binSpecificDevices.find(d => d.category === 'Organic')?.deviceid;
-        anorganicDeviceId = binSpecificDevices.find(d => d.category === 'Anorganic' || d.category === 'Inorganic')?.deviceid;
-        residueDeviceId = binSpecificDevices.find(d => d.category === 'Residue' || d.category === 'B3')?.deviceid;
-        console.log('Using device IDs for bin:', binId, { organicDeviceId, anorganicDeviceId, residueDeviceId });
-      }
+      // Map timeRange to backend format
+      const timeRangeMap: Record<string, 'fiveMinute' | 'hourly' | 'daily' | 'monthly'> = {
+        'fiveMinute': 'fiveMinute',
+        'hourly': 'hourly',
+        'daily': 'daily',
+        'monthly': 'monthly'
+      };
 
-      // Choose API endpoint based on timeRange
-      let analyticsPromise, organicPromise, anorganicPromise, residuePromise;
-      if (timeRange === 'fiveMinute') {
-        // For "Hourly" view, show 5-minute interval data (12 points per hour, 24 hours)
-        analyticsPromise = binId
-          ? apiService.getFiveMinuteIntervalDataForBin(binId, startDate, endDate)
-          : apiService.getFiveMinuteIntervalData(undefined, undefined, startDate, endDate);
-        organicPromise = apiService.getFiveMinuteIntervalData(organicDeviceId, 'Organic', startDate, endDate);
-        anorganicPromise = apiService.getFiveMinuteIntervalData(anorganicDeviceId, 'Anorganic', startDate, endDate);
-        residuePromise = apiService.getFiveMinuteIntervalData(residueDeviceId, 'Residue', startDate, endDate);
-      } else if (timeRange === 'hourly') {
-        // For "Day" view, show hourly data (24 hours: 00:00-23:00)
-        analyticsPromise = binId
-          ? apiService.getHourlyIntervalDataForBin(binId, startDate, endDate)
-          : apiService.getHourlyIntervalData(undefined, undefined, startDate, endDate);
-        organicPromise = apiService.getHourlyIntervalData(organicDeviceId, 'Organic', startDate, endDate);
-        anorganicPromise = apiService.getHourlyIntervalData(anorganicDeviceId, 'Anorganic', startDate, endDate);
-        residuePromise = apiService.getHourlyIntervalData(residueDeviceId, 'Residue', startDate, endDate);
-      } else if (timeRange === 'daily') {
-        // For "Week" view, show daily data (7 days)
-        analyticsPromise = binId
-          ? apiService.getDailyAnalyticsForBin(binId, 7, startDate, endDate)
-          : apiService.getDailyAnalytics(7, undefined, startDate, endDate);
-        organicPromise = apiService.getDailyAnalytics(7, 'Organic', startDate, endDate, organicDeviceId);
-        anorganicPromise = apiService.getDailyAnalytics(7, 'Anorganic', startDate, endDate, anorganicDeviceId);
-        residuePromise = apiService.getDailyAnalytics(7, 'Residue', startDate, endDate, residueDeviceId);
+      const mappedTimeRange = timeRangeMap[timeRange || 'monthly'] || 'monthly';
+
+      console.log('[P1.1] Using combined analytics endpoint:', {
+        timeRange: mappedTimeRange,
+        startDate,
+        endDate,
+        binId
+      });
+
+      // SINGLE API CALL instead of 6 parallel calls
+      const combinedRes = await apiService.getCombinedAnalytics(
+        mappedTimeRange,
+        startDate,
+        endDate,
+        binId
+      );
+
+      if (combinedRes.success && combinedRes.data) {
+        console.log('[P1.1] Combined response received:', {
+          wasteDistribution: combinedRes.data.wasteDistribution.length,
+          analytics: combinedRes.data.analytics.length,
+          organicAnalytics: combinedRes.data.organicAnalytics.length,
+          anorganicAnalytics: combinedRes.data.anorganicAnalytics.length,
+          residueAnalytics: combinedRes.data.residueAnalytics.length,
+          trashBinsStatus: combinedRes.data.trashBinsStatus.length
+        });
+
+        // Update all state from single response
+        setWasteDistribution(combinedRes.data.wasteDistribution);
+        setDailyAnalytics(combinedRes.data.analytics);
+        setOrganicAnalytics(combinedRes.data.organicAnalytics);
+        setAnorganicAnalytics(combinedRes.data.anorganicAnalytics);
+        setResidueAnalytics(combinedRes.data.residueAnalytics);
+        setTrashBinsStatus(combinedRes.data.trashBinsStatus);
       } else {
-        // For "Month" view, show daily data (30 days)
-        analyticsPromise = binId
-          ? apiService.getDailyAnalyticsForBin(binId, 30, startDate, endDate)
-          : apiService.getDailyAnalytics(30, undefined, startDate, endDate);
-        organicPromise = apiService.getDailyAnalytics(30, 'Organic', startDate, endDate, organicDeviceId);
-        anorganicPromise = apiService.getDailyAnalytics(30, 'Anorganic', startDate, endDate, anorganicDeviceId);
-        residuePromise = apiService.getDailyAnalytics(30, 'Residue', startDate, endDate, residueDeviceId);
-      }
-
-      const [distributionRes, analyticsRes, organicRes, anorganicRes, residueRes, binsRes] = await Promise.all([
-        apiService.getWasteDistribution(),
-        analyticsPromise,
-        organicPromise,
-        anorganicPromise,
-        residuePromise,
-        apiService.getTrashBinsWithStatus()
-      ]);
-
-      if (distributionRes.success) {
-        setWasteDistribution(distributionRes.data);
-      }
-
-      if (analyticsRes.success) {
-        setDailyAnalytics(analyticsRes.data);
-      }
-
-      if (organicRes.success) {
-        setOrganicAnalytics(organicRes.data);
-      }
-
-      if (anorganicRes.success) {
-        setAnorganicAnalytics(anorganicRes.data);
-      }
-
-      if (residueRes.success) {
-        setResidueAnalytics(residueRes.data);
-      }
-
-      if (binsRes.success) {
-        setTrashBinsStatus(binsRes.data);
+        setError('Failed to fetch combined analytics');
       }
 
     } catch (err) {
-      console.error('Error fetching data:', err);
+      console.error('[P1.1] Error fetching combined data:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch data');
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, timeRange, binId, binSpecificDevices]);
+  }, [startDate, endDate, timeRange, binId]);
 
   // Fetch both current status and time-range data
   useEffect(() => {
@@ -142,13 +110,9 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
   }, [binId]); // Re-fetch when binId changes
 
   useEffect(() => {
-    // Only fetch time-range data if:
-    // 1. No binId is specified (system-wide data), OR
-    // 2. binId is specified AND binSpecificDevices have been loaded
-    if (!binId || (binId && binSpecificDevices.length > 0)) {
-      fetchTimeRangeData(); // Fetch time-range data when filters change
-    }
-  }, [fetchTimeRangeData, binId, binSpecificDevices.length]);
+    // P1.1: Simplified - combined endpoint handles binId internally
+    fetchTimeRangeData();
+  }, [fetchTimeRangeData]);
 
   // Calculate current values from CURRENT STATUS data (not affected by time range filters)
   const currentWeight: TrashData = useMemo(() => {

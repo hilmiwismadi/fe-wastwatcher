@@ -386,6 +386,30 @@ class ApiService {
     const query = days ? `?days=${days}` : '';
     return this.fetchApi<TrendData[]>(`/api/analytics/alert-statistics${query}`);
   }
+
+  // P1.1 OPTIMIZATION: Combined analytics endpoint (reduces 6 calls to 1)
+  async getCombinedAnalytics(
+    timeRange: 'fiveMinute' | 'hourly' | 'daily' | 'monthly',
+    startDate?: string,
+    endDate?: string,
+    binId?: string
+  ): Promise<ApiResponse<{
+    wasteDistribution: WasteDistribution[];
+    analytics: DailyAnalytics[];
+    organicAnalytics: DailyAnalytics[];
+    anorganicAnalytics: DailyAnalytics[];
+    residueAnalytics: DailyAnalytics[];
+    trashBinsStatus: TrashBinWithStatus[];
+  }>> {
+    const params = new URLSearchParams();
+    params.append('timeRange', timeRange);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (binId) params.append('binId', binId);
+
+    const query = `?${params.toString()}`;
+    return this.fetchApi(`/api/analytics/combined${query}`);
+  }
 }
 
 export const apiService = new ApiService();
