@@ -19,7 +19,7 @@ import { BarChart } from './BarChart';
 import { TouchCarousel } from './TouchCarousel';
 import { useApiTrashData } from '../hooks/useApiTrashData';
 import { binSlugToIdMapping } from '../data/mockData';
-import { getDefaultDateRange, combineDateAndTime, getTimeRangeDate } from '../utils/dateUtils';
+import { getRealTimeDefaultDateRange, combineDateAndTime, getRealTimeRangeDate } from '../utils/dateUtils';
 import { apiService, Device } from '../services/api';
 
 interface RealDataDashboardProps {
@@ -29,6 +29,7 @@ interface RealDataDashboardProps {
 // STEP 3: Map bin slug to location name for sensor readings
 const binSlugToLocationMapping: Record<string, string> = {
   'kantinlt1': 'KantinSGLC',
+  'baratlt1': 'all', // Fetch all sensor readings for baratlt1
   // Add more mappings as needed
 };
 
@@ -59,6 +60,8 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
   // STEP 3: State for sensor readings
   const [sensorReadings, setSensorReadings] = useState<SensorReading[]>([]);
   const [sensorDataLoading, setSensorDataLoading] = useState(false);
+  const [sensorDataOffset, setSensorDataOffset] = useState(0);
+  const [hasMoreSensorData, setHasMoreSensorData] = useState(true);
 
   // State for bin data (fetched dynamically)
   const [trashBinName, setTrashBinName] = React.useState<string>('Loading...');
@@ -132,55 +135,73 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     fetchBinData();
   }, [trashbinid, binSlug]);
 
-  // STEP 3: Fetch sensor readings from backend
-  React.useEffect(() => {
-    const fetchSensorReadings = async () => {
-      const location = binSlugToLocationMapping[binSlug.toLowerCase()];
-      if (!location) {
-        console.warn('No location mapping found for binSlug:', binSlug);
-        return;
+  // STEP 3: Fetch sensor readings from backend with pagination
+  const fetchSensorReadings = React.useCallback(async (offset = 0, append = false) => {
+    const location = binSlugToLocationMapping[binSlug.toLowerCase()];
+    if (!location) {
+      console.warn('No location mapping found for binSlug:', binSlug);
+      return;
+    }
+
+    setSensorDataLoading(true);
+    try {
+      // Use Railway API for sensor readings
+      const API_URL = 'https://web-production-99408.up.railway.app';
+      // Fetch sensor readings with pagination (1000 records at a time)
+      const response = await fetch(`${API_URL}/api/sensors/readings/${location}?binType=organic&limit=1000&offset=${offset}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch sensor readings');
       }
 
-      setSensorDataLoading(true);
-      try {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-        // Fetch sensor readings for specific location and bin type
-        const response = await fetch(`${API_URL}/api/sensors/readings/${location}?binType=organic&limit=1000`);
+      const data = await response.json();
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch sensor readings');
+      if (data.success && data.data) {
+        console.log(`Fetched sensor readings: ${data.data.length} records (offset: ${offset})`);
+
+        // Backend returns data in reverse chronological order (newest first)
+        // Reverse it so latest is at the end for consistency
+        const sortedReadings = [...data.data].reverse();
+
+        if (append) {
+          // Append to existing data
+          setSensorReadings(prev => [...sortedReadings, ...prev]);
+        } else {
+          // Replace existing data
+          setSensorReadings(sortedReadings);
         }
 
-        const data = await response.json();
+        // Check if there's more data
+        setHasMoreSensorData(data.data.length === 1000);
+        setSensorDataOffset(offset + data.data.length);
 
-        if (data.success && data.data) {
-          console.log('Fetched sensor readings:', data.data.length, 'records');
-
-          // Backend returns data in reverse chronological order (newest first)
-          // Reverse it so latest is at the end for consistency
-          const sortedReadings = [...data.data].reverse();
-
-          console.log(`First reading after sort: ID ${sortedReadings[0]?.id}, timestamp: ${sortedReadings[0]?.timestamp}`);
-          console.log(`Last reading after sort: ID ${sortedReadings[sortedReadings.length - 1]?.id}, timestamp: ${sortedReadings[sortedReadings.length - 1]?.timestamp}`);
-
-          setSensorReadings(sortedReadings);
-        } else {
-          console.warn('No sensor readings found');
+        console.log(`First reading: ID ${sortedReadings[0]?.id}, timestamp: ${sortedReadings[0]?.timestamp}`);
+        console.log(`Last reading: ID ${sortedReadings[sortedReadings.length - 1]?.id}, timestamp: ${sortedReadings[sortedReadings.length - 1]?.timestamp}`);
+      } else {
+        console.warn('No sensor readings found');
+        if (!append) {
           setSensorReadings([]);
         }
-      } catch (error) {
-        console.error('Error fetching sensor readings:', error);
-        setSensorReadings([]);
-      } finally {
-        setSensorDataLoading(false);
+        setHasMoreSensorData(false);
       }
-    };
-
-    fetchSensorReadings();
+    } catch (error) {
+      console.error('Error fetching sensor readings:', error);
+      if (!append) {
+        setSensorReadings([]);
+      }
+      setHasMoreSensorData(false);
+    } finally {
+      setSensorDataLoading(false);
+    }
   }, [binSlug]);
 
-  // Initialize with default date range
-  const defaultRange = getDefaultDateRange();
+  // Initial fetch on mount
+  React.useEffect(() => {
+    fetchSensorReadings(0, false);
+  }, [fetchSensorReadings]);
+
+  // Initialize with real-time date range for real sensor data
+  const defaultRange = getRealTimeDefaultDateRange();
 
   // State management
   const [currentBinIndex, setCurrentBinIndex] = useState(0);
@@ -200,6 +221,53 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
   const [endDate, setEndDate] = useState(defaultRange.endDate);
   const [endTime, setEndTime] = useState(defaultRange.endTime);
 
+  // Auto-sync endDate and endTime based on startDate and startTime for all time ranges
+  React.useEffect(() => {
+    const startDateObj = new Date(startDate);
+
+    switch (timeRange) {
+      case 'fiveMinute': // Hour view
+        // Same day, end time = start hour :59
+        if (startDate !== endDate) {
+          setEndDate(startDate);
+        }
+        const [hours] = startTime.split(':');
+        const expectedEndTime = `${hours}:59`;
+        if (endTime !== expectedEndTime) {
+          setEndTime(expectedEndTime);
+        }
+        break;
+
+      case 'hourly': // Day view
+        // Same day, 00:00 to 23:59
+        if (startDate !== endDate) {
+          setEndDate(startDate);
+        }
+        break;
+
+      case 'daily': // Week view
+        // 7 days from start date
+        const weekEndDate = new Date(startDateObj);
+        weekEndDate.setDate(weekEndDate.getDate() + 6);
+        const weekEndStr = weekEndDate.toISOString().split('T')[0];
+        if (endDate !== weekEndStr) {
+          setEndDate(weekEndStr);
+        }
+        break;
+
+      case 'weekly': // Month view
+        // 30 days from start date
+        const monthEndDate = new Date(startDateObj);
+        monthEndDate.setDate(monthEndDate.getDate() + 29);
+        const monthEndStr = monthEndDate.toISOString().split('T')[0];
+        if (endDate !== monthEndStr) {
+          setEndDate(monthEndStr);
+        }
+        break;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, startTime, timeRange]);
+
   // Applied State (what actually gets sent to API)
   const [appliedStartDate, setAppliedStartDate] = useState(defaultRange.startDate);
   const [appliedStartTime, setAppliedStartTime] = useState(defaultRange.startTime);
@@ -218,7 +286,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
 
     // For hourly view, calculate based on chart-specific offset
     const offset = hourlyOffsets[chartType];
-    const baseRange = getTimeRangeDate('fiveMinute');
+    const baseRange = getRealTimeRangeDate('fiveMinute');
 
     const newDateTime = new Date(baseRange.startDate);
     newDateTime.setHours(newDateTime.getHours() + offset, 0, 0, 0);
@@ -294,7 +362,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     setTimeRange(newTimeRange);
     // Reset all hour offsets when changing time range
     setHourlyOffsets({ total: 0, residue: 0, organic: 0, anorganic: 0 });
-    const newRange = getTimeRangeDate(newTimeRange);
+    const newRange = getRealTimeRangeDate(newTimeRange);
 
     // Update UI state with new range
     setStartDate(newRange.startDate);
@@ -332,61 +400,21 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
 
   // Get formatted time display for a chart
   const getChartTimeDisplay = (chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
-    // For organic chart with sensor data in hourly view, calculate from sensor readings
-    if (chartType === 'organic' && timeRange === 'fiveMinute' && sensorReadings.length > 0) {
-      const latestReading = sensorReadings[sensorReadings.length - 1];
-      const latestTimestamp = new Date(latestReading.timestamp);
+    // For organic chart with sensor data in hourly view, use Time Period picker selection
+    if (chartType === 'organic' && timeRange === 'fiveMinute') {
+      // Use the applied Time Period picker values
+      const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
+      const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
 
-      // Get hour in WIB timezone using Intl.DateTimeFormat (more reliable)
-      const wibHour = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'Asia/Jakarta',
-        hour: 'numeric',
-        hour12: false
-      }).format(latestTimestamp);
-
-      const wibDate = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'Asia/Jakarta',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).format(latestTimestamp);
-
-      const latestHour = parseInt(wibHour);
-
-      console.log(`[Display Header DEBUG] Raw timestamp: ${latestReading.timestamp}`);
-      console.log(`[Display Header DEBUG] WIB hour from Intl: "${wibHour}" = ${latestHour}`);
-      console.log(`[Display Header DEBUG] WIB date from Intl: "${wibDate}"`);
-
-      const offset = hourlyOffsets.organic || 0;
-      const targetHour = (latestHour + offset + 24) % 24; // Wrap around 0-23
-
-      // Get WIB date components
-      const [month, day, year] = wibDate.split('/');
-
-      // Create a Date object representing the WIB date
-      const latestDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), latestHour, 0, 0);
-
-      // Calculate day shift for display
-      let dayShift = 0;
-      if (offset < 0 && targetHour > latestHour) {
-        dayShift = -1;
-      } else if (offset > 0 && targetHour < latestHour) {
-        dayShift = 1;
-      }
-
-      const targetDate = new Date(latestDate);
-      targetDate.setDate(targetDate.getDate() + dayShift);
-
-      // Format date for display
-      const dateStr = targetDate.toLocaleDateString('en-US', {
+      // Format for display
+      const dateStr = startDateTime.toLocaleDateString('en-US', {
         month: 'short',
-        day: 'numeric'
+        day: 'numeric',
+        timeZone: 'Asia/Jakarta'
       });
 
-      console.log(`[Display Header] Latest WIB hour: ${latestHour}, Offset: ${offset}, Target: ${targetHour}, Display: ${dateStr} ${targetHour}:00-${targetHour}:59`);
-
-      const startTime = `${dateStr} ${String(targetHour).padStart(2, '0')}:00`;
-      const endTime = `${String(targetHour).padStart(2, '0')}:59`;
+      const startTime = `${dateStr} ${appliedStartTime}`;
+      const endTime = `${appliedEndTime}`;
 
       return { startTime, endTime };
     }
@@ -787,7 +815,16 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     let chartData: { time: string; fullTimestamp: string; value: number }[] = [];
 
     if (timeRange === 'fiveMinute') {
-      // HOURLY VIEW: Show specific hour based on offset
+      // HOUR VIEW: Show specific hour from Time Period picker
+      // Parse the applied start date and time from Time Period picker
+      const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
+      const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
+
+      console.log(`[Organic Chart Hour View] Time Period Selection:`);
+      console.log(`  Start: ${appliedStartDate} ${appliedStartTime} => ${startDateTime.toISOString()}`);
+      console.log(`  End: ${appliedEndDate} ${appliedEndTime} => ${endDateTime.toISOString()}`);
+      console.log(`  Total sensor readings available: ${processedData.length}`);
+
       // Group by MINUTE, select latest reading per minute
       const groupByMinute: Record<string, typeof processedData[0]> = {};
 
@@ -809,107 +846,40 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
 
       const minuteData = Object.values(groupByMinute).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-      // Get the latest timestamp to determine the default hour
+      console.log(`  Grouped to ${minuteData.length} minute intervals`);
       if (minuteData.length > 0) {
-        const latestItem = minuteData[minuteData.length - 1];
-        const latestTimestamp = latestItem.timestamp;
+        console.log(`  First minute data: ${minuteData[0].timestamp.toISOString()}`);
+        console.log(`  Last minute data: ${minuteData[minuteData.length - 1].timestamp.toISOString()}`);
+      }
 
-        // Get hour in WIB timezone (Asia/Jakarta)
-        const wibTimeString = latestTimestamp.toLocaleString('en-US', {
-          timeZone: 'Asia/Jakarta',
-          hour: '2-digit',
-          hour12: false
-        });
-        const latestHour = parseInt(wibTimeString.split(',')[1]?.trim() || wibTimeString);
+      // Filter data based on Time Period picker selection
+      const filteredData = minuteData.filter(item => {
+        const isInRange = item.timestamp >= startDateTime && item.timestamp <= endDateTime;
+        return isInRange;
+      });
 
-        console.log(`[Organic Chart DEBUG] Latest reading ID: ${latestItem.id}`);
-        console.log(`[Organic Chart DEBUG] Original timestamp string: ${latestItem.timestampString}`);
-        console.log(`[Organic Chart DEBUG] Date object: ${latestTimestamp.toISOString()}`);
-        console.log(`[Organic Chart DEBUG] WIB time: ${latestTimestamp.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' })}`);
-        console.log(`[Organic Chart DEBUG] Local browser time: ${latestTimestamp.toLocaleString()}`);
-        console.log(`[Organic Chart DEBUG] Extracted WIB hour: ${latestHour}`);
+      console.log(`  Filtered to ${filteredData.length} data points within Time Period range`);
+      if (filteredData.length > 0) {
+        console.log(`  First filtered: ${filteredData[0].timestamp.toISOString()}`);
+        console.log(`  Last filtered: ${filteredData[filteredData.length - 1].timestamp.toISOString()}`);
+      } else if (hasMoreSensorData && !sensorDataLoading) {
+        // No data found in current range, try fetching more historical data
+        console.log(`  No data found, fetching more historical data (offset: ${sensorDataOffset})`);
+        fetchSensorReadings(sensorDataOffset, true);
+      }
 
-        // Calculate target hour based on offset (default 0 = latest hour)
-        const offset = hourlyOffsets.organic || 0;
-        const targetHour = (latestHour + offset + 24) % 24; // Wrap around 0-23
+      if (filteredData.length > 0) {
+        // Extract target hour and date from Time Period picker
+        const targetHour = startDateTime.getHours();
+        const targetDate = new Date(startDateTime);
+        targetDate.setHours(0, 0, 0, 0);
 
-        // Get WIB date components for the latest timestamp
-        const wibDateString = latestTimestamp.toLocaleString('en-US', {
-          timeZone: 'Asia/Jakarta',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false
-        });
+        console.log(`[Organic Chart] Showing data for ${targetDate.toLocaleDateString('en-US')} ${targetHour}:00-${targetHour}:59`);
 
-        const [datePart, timePart] = wibDateString.split(', ');
-        const [month, day, year] = datePart.split('/');
-
-        // Create a Date object representing the WIB date
-        const latestDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), latestHour, 0, 0);
-
-        // Determine target date based on offset
-        const targetDate = new Date(latestDate);
-
-        // Calculate how many days to shift
-        let dayShift = 0;
-        if (offset < 0 && targetHour > latestHour) {
-          dayShift = -1;
-        } else if (offset > 0 && targetHour < latestHour) {
-          dayShift = 1;
-        }
-
-        targetDate.setDate(targetDate.getDate() + dayShift);
-
-        console.log(`[Organic Chart] Latest hour (WIB): ${latestHour}, Offset: ${offset}, Target hour: ${targetHour}, Day shift: ${dayShift}`);
-        console.log(`[Organic Chart] Target date: ${targetDate.toLocaleDateString('en-US')} ${targetHour}:00`);
-
-        // Filter data for the specific hour on the target date using WIB timezone
-        const hourData = minuteData.filter(item => {
-          // Get hour in WIB timezone for this item
-          const itemWibTimeString = item.timestamp.toLocaleString('en-US', {
-            timeZone: 'Asia/Jakarta',
-            hour: '2-digit',
-            hour12: false
-          });
-          const itemHour = parseInt(itemWibTimeString.split(',')[1]?.trim() || itemWibTimeString);
-
-          // Get date components in WIB timezone
-          const itemWibDateString = item.timestamp.toLocaleString('en-US', {
-            timeZone: 'Asia/Jakarta',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour12: false
-          });
-          const [itemDatePart] = itemWibDateString.split(', ');
-          const [itemMonth, itemDay, itemYear] = itemDatePart.split('/');
-
-          const targetDateNum = targetDate.getDate();
-          const targetMonth = targetDate.getMonth() + 1; // getMonth() is 0-indexed
-          const targetYear = targetDate.getFullYear();
-
-          return itemHour === targetHour &&
-                 parseInt(itemDay) === targetDateNum &&
-                 parseInt(itemMonth) === targetMonth &&
-                 parseInt(itemYear) === targetYear;
-        });
-
-        console.log(`[Organic Chart] Showing ${hourData.length} data points for ${targetDate.toLocaleDateString('en-US')} ${targetHour}:00-${targetHour}:59`);
-
-        // Create a map of existing data by minute (using WIB timezone)
+        // Create a map of existing data by minute
         const dataByMinute = new Map<number, typeof processedData[0]>();
-        hourData.forEach(item => {
-          // Get minute in WIB timezone
-          const wibMinuteString = item.timestamp.toLocaleString('en-US', {
-            timeZone: 'Asia/Jakarta',
-            minute: '2-digit',
-            hour12: false
-          });
-          const minute = parseInt(wibMinuteString.split(':').pop()?.trim() || '0');
+        filteredData.forEach(item => {
+          const minute = item.timestamp.getMinutes();
           dataByMinute.set(minute, item);
         });
 
@@ -958,53 +928,113 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       }
 
     } else if (timeRange === 'hourly') {
-      // DAY VIEW: Group by MINUTE, show last 24 hours
-      const groupByMinute: Record<string, typeof processedData[0]> = {};
+      // DAY VIEW: Show data from Time Period picker range with 15-minute intervals
+      // Parse the applied start date and time from Time Period picker
+      const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
+      const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
+
+      console.log(`[Organic Chart Day View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
+
+      // Group by 15-minute intervals, select latest reading per interval
+      const groupBy15Min: Record<string, typeof processedData[0]> = {};
 
       processedData.forEach(item => {
-        const minuteKey = item.timestamp.toLocaleString('en-US', {
+        // Round down to nearest 15-minute interval
+        const roundedMinute = Math.floor(item.timestamp.getMinutes() / 15) * 15;
+        const intervalKey = item.timestamp.toLocaleString('en-US', {
           year: 'numeric',
           month: '2-digit',
           day: '2-digit',
           hour: '2-digit',
-          minute: '2-digit',
           hour12: false,
           timeZone: 'Asia/Jakarta'
-        });
+        }) + `:${String(roundedMinute).padStart(2, '0')}`;
 
-        if (!groupByMinute[minuteKey] || item.timestamp > groupByMinute[minuteKey].timestamp) {
-          groupByMinute[minuteKey] = item;
+        if (!groupBy15Min[intervalKey] || item.timestamp > groupBy15Min[intervalKey].timestamp) {
+          groupBy15Min[intervalKey] = item;
         }
       });
 
-      const minuteData = Object.values(groupByMinute).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      // Filter data based on Time Period picker selection
+      const filteredData = Object.values(groupBy15Min).filter(item => {
+        return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
+      });
 
-      // Show last 24 hours worth of data (1440 minutes, but we'll take last available minutes)
-      const dataToShow = minuteData.slice(-1440);
+      console.log(`[Organic Chart Day View] Filtered ${filteredData.length} data points within Time Period range`);
 
-      chartData = dataToShow.map(item => ({
-        time: item.timestamp.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-          timeZone: 'Asia/Jakarta'
-        }),
-        fullTimestamp: `${item.timestamp.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          timeZone: 'Asia/Jakarta'
-        })} ${item.timestamp.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-          timeZone: 'Asia/Jakarta'
-        })} (ID #${item.id})`,
-        value: organicToggle === "weight" ? item.weight : item.volume
-      }));
+      // Create a map of existing data by hour and 15-minute interval
+      const dataByInterval = new Map<string, typeof processedData[0]>();
+      filteredData.forEach(item => {
+        const hour = item.timestamp.getHours();
+        const roundedMinute = Math.floor(item.timestamp.getMinutes() / 15) * 15;
+        const key = `${hour}:${String(roundedMinute).padStart(2, '0')}`;
+        dataByInterval.set(key, item);
+      });
+
+      // Generate all 15-minute intervals for 24 hours (96 intervals: 24 hours * 4)
+      const startHour = startDateTime.getHours();
+      const endHour = endDateTime.getHours();
+      const targetDate = new Date(startDateTime);
+      targetDate.setHours(0, 0, 0, 0);
+
+      chartData = [];
+
+      for (let hour = startHour; hour <= endHour; hour++) {
+        for (let minute of [0, 15, 30, 45]) {
+          const key = `${hour}:${String(minute).padStart(2, '0')}`;
+          const data = dataByInterval.get(key);
+
+          if (data) {
+            // Has data for this interval
+            chartData.push({
+              time: data.timestamp.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+                timeZone: 'Asia/Jakarta'
+              }),
+              fullTimestamp: `${data.timestamp.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                timeZone: 'Asia/Jakarta'
+              })} ${data.timestamp.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false,
+                timeZone: 'Asia/Jakarta'
+              })} (ID #${data.id})`,
+              value: organicToggle === "weight" ? data.weight : data.volume
+            });
+          } else {
+            // No data for this interval, create placeholder with value 0
+            const placeholderDate = new Date(targetDate);
+            placeholderDate.setHours(hour, minute, 0, 0);
+
+            chartData.push({
+              time: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+              fullTimestamp: `${targetDate.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                timeZone: 'Asia/Jakarta'
+              })} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} (No data)`,
+              value: 0
+            });
+          }
+        }
+      }
+
+      console.log(`[Organic Chart Day View] Generated ${chartData.length} data points with 15-minute intervals`);
 
     } else if (timeRange === 'daily') {
-      // WEEK VIEW: Group by HOUR, select latest reading per hour
+      // WEEK VIEW: Show data from Time Period picker range
+      // Parse the applied start date and time from Time Period picker
+      const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
+      const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
+
+      console.log(`[Organic Chart Week View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
+
+      // Group by HOUR, select latest reading per hour
       const groupByHour: Record<string, typeof processedData[0]> = {};
 
       processedData.forEach(item => {
@@ -1023,9 +1053,15 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       });
 
       const hourData = Object.values(groupByHour).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-      const dataToShow = hourData.slice(-168); // Last 7 days = 168 hours
 
-      chartData = dataToShow.map(item => ({
+      // Filter data based on Time Period picker selection
+      const filteredData = hourData.filter(item => {
+        return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
+      });
+
+      console.log(`[Organic Chart Week View] Filtered ${filteredData.length} data points within Time Period range`);
+
+      chartData = filteredData.map(item => ({
         time: item.timestamp.toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
@@ -1050,6 +1086,13 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       }));
 
     } else if (timeRange === 'weekly') {
+      // MONTH VIEW: Show data from Time Period picker range
+      // Parse the applied start date and time from Time Period picker
+      const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
+      const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
+
+      console.log(`[Organic Chart Month View] Time Period Selection - Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}`);
+
       // Group by DAY, select latest reading per day
       const groupByDay: Record<string, typeof processedData[0]> = {};
 
@@ -1067,9 +1110,15 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       });
 
       const dayData = Object.values(groupByDay).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-      const dataToShow = dayData.slice(-30); // Last 30 days
 
-      chartData = dataToShow.map(item => ({
+      // Filter data based on Time Period picker selection
+      const filteredData = dayData.filter(item => {
+        return item.timestamp >= startDateTime && item.timestamp <= endDateTime;
+      });
+
+      console.log(`[Organic Chart Month View] Filtered ${filteredData.length} data points within Time Period range`);
+
+      chartData = filteredData.map(item => ({
         time: item.timestamp.toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',

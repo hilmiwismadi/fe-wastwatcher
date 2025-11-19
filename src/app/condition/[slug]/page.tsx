@@ -50,11 +50,21 @@ export default function ConditionPage({ params }: PageProps) {
   const [mqttTopic, setMqttTopic] = useState<string>('')
   const [binName, setBinName] = useState<string>('')
 
+  // MQTT topics for Organic and Anorganic bins
+  const [organicTopic, setOrganicTopic] = useState<string>('')
+  const [anorganicTopic, setAnorganicTopic] = useState<string>('')
+
   // Unwrap params
   useEffect(() => {
     params.then(p => {
-      const topic = binSlugToMqttTopic[p.slug.toLowerCase()] || 'CapsE6/Unknown'
-      setMqttTopic(topic)
+      const baseTopic = binSlugToMqttTopic[p.slug.toLowerCase()] || 'CapsE6/Unknown'
+      setMqttTopic(baseTopic)
+
+      // Set specific topics for Organic and Anorganic
+      const location = baseTopic.split('/')[1] || 'Unknown'
+      setOrganicTopic(`CapsE6/${location}/Organik`)
+      setAnorganicTopic(`CapsE6/${location}/Anorganik`)
+
       const name = binSlugMapping[p.slug.toLowerCase()]?.name || 'Unknown Bin'
       setBinName(name)
     })
@@ -143,14 +153,23 @@ export default function ConditionPage({ params }: PageProps) {
   }, [mqttTopic])
 
   useEffect(() => {
-    if (!mqttTopic) return
+    if (!organicTopic || !anorganicTopic) return
 
     // Initialize WebSocket connection
     const ws = new WebSocket(`${WS_URL}/ws`)
 
     ws.onopen = () => {
       setIsConnected(true)
-      console.log('WebSocket connected for topic:', mqttTopic)
+      console.log('WebSocket connected for topics:', {
+        organic: organicTopic,
+        anorganic: anorganicTopic
+      })
+
+      // Subscribe to both topics
+      ws.send(JSON.stringify({
+        type: 'subscribe',
+        topics: [organicTopic, anorganicTopic]
+      }))
     }
 
     ws.onmessage = (event) => {
@@ -164,6 +183,12 @@ export default function ConditionPage({ params }: PageProps) {
           return
         }
 
+        // Skip subscription confirmation
+        if (message.type === 'subscribed') {
+          console.log('✅ Subscribed to topics:', message.topics)
+          return
+        }
+
         // Update location
         if (message.location) {
           setLocation(message.location)
@@ -173,7 +198,7 @@ export default function ConditionPage({ params }: PageProps) {
         const timestamp = new Date().toLocaleTimeString()
         setLastUpdate(timestamp)
 
-        // PARSING: Update sensor data berdasarkan binType
+        // PARSING: Update sensor data based on MQTT topic
         if (message.data && message.data.sensors) {
           const sensors: BinSensorData = {
             ...message.data.sensors,
@@ -186,9 +211,19 @@ export default function ConditionPage({ params }: PageProps) {
             weight: message.data.weight || 0
           }
 
-          // Update based on bin type
-          // Default to anorganic if binType not specified in message
-          const binType = (message.binType || 'anorganic') as 'organic' | 'anorganic' | 'residue'
+          // Determine bin type from MQTT topic
+          const topic = message.topic || ''
+          let binType: 'organic' | 'anorganic' | 'residue' = 'anorganic'
+
+          if (topic.includes('/Organik')) {
+            binType = 'organic'
+          } else if (topic.includes('/Anorganik')) {
+            binType = 'anorganic'
+          } else if (topic.includes('/Residue')) {
+            binType = 'residue'
+          }
+
+          console.log(`📥 Message from topic: ${topic} → ${binType}`)
 
           if (binType === 'organic') {
             setOrganicSensors(sensors)
@@ -231,7 +266,7 @@ export default function ConditionPage({ params }: PageProps) {
     return () => {
       ws.close()
     }
-  }, [mqttTopic])
+  }, [organicTopic, anorganicTopic])
 
   return (
     <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-8">
@@ -268,9 +303,15 @@ export default function ConditionPage({ params }: PageProps) {
                 {isConnected ? 'Connected' : 'Disconnected'}
               </span>
             </div>
-            <div className="flex items-center gap-1 flex-wrap">
-              <span className="font-semibold text-purple-600">📡 Topic:</span>
-              <code className="bg-purple-50 px-1.5 py-0.5 rounded text-xs break-all">{mqttTopic}</code>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="font-semibold text-green-600">🌱 Organic:</span>
+                <code className="bg-green-50 px-1.5 py-0.5 rounded text-xs break-all">{organicTopic}</code>
+              </div>
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="font-semibold text-blue-600">♻️ Anorganic:</span>
+                <code className="bg-blue-50 px-1.5 py-0.5 rounded text-xs break-all">{anorganicTopic}</code>
+              </div>
             </div>
             {location && (
               <div className="flex items-center gap-1">
@@ -498,21 +539,22 @@ export default function ConditionPage({ params }: PageProps) {
           <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">📖 System Info</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <h4 className="font-semibold text-xs sm:text-sm text-blue-800 mb-1 sm:mb-2">Current Phase</h4>
+              <h4 className="font-semibold text-xs sm:text-sm text-blue-800 mb-1 sm:mb-2">Current Implementation</h4>
               <ul className="text-xs sm:text-sm text-gray-700 space-y-0.5 sm:space-y-1">
                 <li className="break-words">• Bin: <strong className="break-all">{binName}</strong></li>
-                <li className="break-words">• Topic: <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">{mqttTopic}</code></li>
-                <li className="break-words">• Showing: <strong>Anorganic</strong> (4 sensors + weight)</li>
+                <li className="break-words">• Organic: <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">{organicTopic}</code></li>
+                <li className="break-words">• Anorganic: <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">{anorganicTopic}</code></li>
+                <li>• Total: <strong>8 sensors</strong> (4 per bin)</li>
                 <li>• Weight in kilograms</li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-xs sm:text-sm text-purple-800 mb-1 sm:mb-2">Future Phase</h4>
               <ul className="text-xs sm:text-sm text-gray-700 space-y-0.5 sm:space-y-1">
-                <li className="break-words">• Topic: <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">{mqttTopic}/Organic</code></li>
-                <li className="break-words">• Topic: <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">{mqttTopic}/Anorganic</code></li>
+                <li className="break-words">• Add Residue bin</li>
                 <li className="break-words">• Topic: <code className="bg-white px-1.5 py-0.5 rounded text-xs break-all">{mqttTopic}/Residue</code></li>
-                <li>• Total: <strong>12 sensors</strong></li>
+                <li>• Total: <strong>12 sensors</strong> (4 per bin × 3 bins)</li>
+                <li>• Full waste categorization</li>
               </ul>
             </div>
           </div>

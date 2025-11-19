@@ -56,8 +56,8 @@ export const getDummyDataDateRange = () => {
 // Check if date is within dummy data range
 export const isDateInDummyRange = (dateStr: string): boolean => {
   const date = new Date(dateStr);
-  const startDate = new Date("2025-08-13");
-  const endDate = new Date("2025-09-11");
+  const startDate = new Date("2025-09-01");
+  const endDate = new Date("2025-11-02");
 
   return date >= startDate && date <= endDate;
 };
@@ -86,10 +86,24 @@ export const getDefaultDateRange = () => {
   };
 };
 
+// Get default date range for real-time sensor data
+export const getRealTimeDefaultDateRange = () => {
+  const now = new Date();
+  const today = getTodayDateString();
+  const currentTime = formatTimeForInput(now);
+
+  return {
+    startDate: today,
+    endDate: today,
+    startTime: getStartOfDayString(),
+    endTime: currentTime
+  };
+};
+
 // Time range types
 export type TimeRange = 'fiveMinute' | 'hourly' | 'daily' | 'weekly';
 
-// Get date range based on time range selector
+// Get date range based on time range selector (for dummy data)
 export const getTimeRangeDate = (timeRange: TimeRange) => {
   const dummyRange = getDummyDataDateRange();
   const dummyEndDate = new Date(dummyRange.end);
@@ -146,5 +160,62 @@ export const getTimeRangeDate = (timeRange: TimeRange) => {
 
     default:
       return getDefaultDateRange();
+  }
+};
+
+// Get date range based on time range selector (for real-time data)
+export const getRealTimeRangeDate = (timeRange: TimeRange) => {
+  const now = new Date();
+  const today = formatDateForInput(now);
+  const currentTime = formatTimeForInput(now);
+
+  switch (timeRange) {
+    case 'fiveMinute':
+      // Current hour view - Full hour from :00 to :59
+      const hourStart = new Date(now);
+      hourStart.setMinutes(0, 0, 0);
+      const hourEnd = new Date(now);
+      hourEnd.setMinutes(59, 59, 999);
+
+      return {
+        startDate: formatDateForInput(hourStart),
+        endDate: formatDateForInput(hourEnd),
+        startTime: formatTimeForInput(hourStart),
+        endTime: formatTimeForInput(hourEnd)
+      };
+
+    case 'hourly':
+      // Full day view (Day view) - Today from 00:00 to 23:59
+      return {
+        startDate: today,
+        endDate: today,
+        startTime: getStartOfDayString(),
+        endTime: getEndOfDayString()
+      };
+
+    case 'daily':
+      // Last 7 days
+      const dailyStart = new Date(now);
+      dailyStart.setDate(dailyStart.getDate() - 7);
+      return {
+        startDate: formatDateForInput(dailyStart),
+        endDate: today,
+        startTime: getStartOfDayString(),
+        endTime: currentTime
+      };
+
+    case 'weekly':
+      // Last 30 days (monthly view)
+      const weeklyStart = new Date(now);
+      weeklyStart.setDate(weeklyStart.getDate() - 30);
+      return {
+        startDate: formatDateForInput(weeklyStart),
+        endDate: today,
+        startTime: getStartOfDayString(),
+        endTime: currentTime
+      };
+
+    default:
+      return getRealTimeDefaultDateRange();
   }
 };

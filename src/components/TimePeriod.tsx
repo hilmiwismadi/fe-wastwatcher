@@ -31,6 +31,53 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Auto-update End Date/Time when Start Date/Time changes based on time range
+  const handleStartDateChange = (newStartDate: string) => {
+    onStartDateChange(newStartDate);
+
+    // Calculate end date based on time range
+    const startDateObj = new Date(newStartDate);
+
+    switch (timeRange) {
+      case 'fiveMinute': // Hour view
+        // Same day for hour view
+        onEndDateChange(newStartDate);
+        break;
+
+      case 'hourly': // Day view
+        // Same day
+        onEndDateChange(newStartDate);
+        break;
+
+      case 'daily': // Week view
+        // 7 days after start date
+        const weekEndDate = new Date(startDateObj);
+        weekEndDate.setDate(weekEndDate.getDate() + 6); // +6 because start day is day 1
+        const weekEndStr = weekEndDate.toISOString().split('T')[0];
+        onEndDateChange(weekEndStr);
+        break;
+
+      case 'weekly': // Month view
+        // 30 days after start date
+        const monthEndDate = new Date(startDateObj);
+        monthEndDate.setDate(monthEndDate.getDate() + 29); // +29 because start day is day 1
+        const monthEndStr = monthEndDate.toISOString().split('T')[0];
+        onEndDateChange(monthEndStr);
+        break;
+    }
+  };
+
+  const handleStartTimeChange = (newStartTime: string) => {
+    onStartTimeChange(newStartTime);
+
+    // For Hour view, automatically set end time to :59 of the same hour
+    if (timeRange === 'fiveMinute') {
+      const [hours] = newStartTime.split(':');
+      const endTime = `${hours}:59`;
+      onEndTimeChange(endTime);
+    }
+  };
+
   // Format date and time for display
   const formatDateTime = (date: string, time: string) => {
     const dateObj = new Date(`${date}T${time}`);
@@ -84,13 +131,13 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
                 <input
                   type="date"
                   value={startDate}
-                  onChange={(e) => onStartDateChange(e.target.value)}
+                  onChange={(e) => handleStartDateChange(e.target.value)}
                   className="w-full border border-gray-300 rounded px-2 py-2 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-blue-800"
                 />
                 <input
                   type="time"
                   value={startTime}
-                  onChange={(e) => onStartTimeChange(e.target.value)}
+                  onChange={(e) => handleStartTimeChange(e.target.value)}
                   className="w-full border border-gray-300 rounded px-2 py-2 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-blue-800"
                 />
               </div>
@@ -156,7 +203,7 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
             <input
               type="date"
               value={startDate}
-              onChange={(e) => onStartDateChange(e.target.value)}
+              onChange={(e) => handleStartDateChange(e.target.value)}
               className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-blue-800"
             />
           </div>
@@ -167,7 +214,7 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
             <input
               type="time"
               value={startTime}
-              onChange={(e) => onStartTimeChange(e.target.value)}
+              onChange={(e) => handleStartTimeChange(e.target.value)}
               className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-blue-800"
             />
           </div>
