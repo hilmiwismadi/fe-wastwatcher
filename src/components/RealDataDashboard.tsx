@@ -436,9 +436,9 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
   const organicRange = getChartTimeRange('organic');
   const anorganicRange = getChartTimeRange('anorganic');
 
-  let residueData = useApiTrashData(residueRange.startDate, residueRange.endDate, timeRange, trashbinid);
-  let organicData = useApiTrashData(organicRange.startDate, organicRange.endDate, timeRange, trashbinid);
-  let anorganicData = useApiTrashData(anorganicRange.startDate, anorganicRange.endDate, timeRange, trashbinid);
+  const residueData = useApiTrashData(residueRange.startDate, residueRange.endDate, timeRange, trashbinid);
+  const organicData = useApiTrashData(organicRange.startDate, organicRange.endDate, timeRange, trashbinid);
+  const anorganicData = useApiTrashData(anorganicRange.startDate, anorganicRange.endDate, timeRange, trashbinid);
 
   // Destructure the data from hooks
   const {
@@ -458,9 +458,6 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     setSelectedSlice,
     currentTotals,
     currentSpecific,
-    getTotalChartData: getTotalChartDataOriginal,
-    getVolumeBarData: getVolumeBarDataOriginal,
-    getDonutData: getDonutDataOriginal,
   } = mainHookData;
 
   // STEP 1: Define chart data getter function (will be memoized below)
@@ -596,14 +593,6 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       const groupByMinute: Record<string, typeof processedData[0]> = {};
 
       processedData.forEach(item => {
-        // Use Asia/Jakarta timezone consistently
-        const jakartaTimeStr = item.timestamp.toLocaleString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-          timeZone: 'Asia/Jakarta'
-        });
-
         const intervalKey = item.timestamp.toLocaleString('en-US', {
           year: 'numeric',
           month: '2-digit',
@@ -717,7 +706,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
           hour12: false,
           timeZone: 'Asia/Jakarta'
         });
-        const [hourStr, minuteStr] = jakartaTimeStr.split(':');
+        const [, minuteStr] = jakartaTimeStr.split(':');
         const minute = parseInt(minuteStr, 10);
 
         // Round down to nearest 15-minute interval
@@ -765,15 +754,18 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       });
 
       // Generate all 15-minute intervals for 24 hours (96 intervals: 24 hours * 4)
-      const startHour = startDateTime.getHours();
-      const endHour = endDateTime.getHours();
-      const targetDate = new Date(startDateTime);
+      // Use Jakarta timezone to extract the hour values from the applied times
+      const startHour = startHourInput; // Use the input hour directly (already in Jakarta time)
+      const endHour = endHourInput;
+
+      // Create a date object for display purposes using Jakarta date
+      const targetDate = new Date(`${appliedStartDate}T00:00:00`);
       targetDate.setHours(0, 0, 0, 0);
 
       chartData = [];
 
       for (let hour = startHour; hour <= endHour; hour++) {
-        for (let minute of [0, 15, 30, 45]) {
+        for (const minute of [0, 15, 30, 45]) {
           const key = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
           const data = dataByInterval.get(key);
 
@@ -1083,7 +1075,8 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
 
         const organicValue = organicData ? (totalToggle === "weight" ? organicData.weight : organicData.volume) : 0;
         const anorganicValue = anorganicData ? (totalToggle === "weight" ? anorganicData.weight : anorganicData.volume) : 0;
-        const totalValue = organicValue + anorganicValue;
+        // For volume, calculate average to keep max at 100%. For weight, sum the values.
+        const totalValue = totalToggle === "volume" ? (organicValue + anorganicValue) / 2 : organicValue + anorganicValue;
 
         chartData.push({
           time: key,
@@ -1093,13 +1086,33 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       }
 
     } else if (timeRange === 'hourly') {
-      // DAY VIEW - 15-minute intervals
-      const groupBy15Min: Record<string, typeof processedData[0]> = {};
+      // DAY VIEW - 15-minute intervals - Sum Organic + Anorganic
+      const anorganicProcessedData = anorganicSensorReadings.map(reading => {
+        const timestamp = new Date(reading.timestamp);
+        const weight = parseFloat(reading.weight);
+        const sensorTL = parseFloat(reading.sensor_top_left);
+        const sensorTR = parseFloat(reading.sensor_top_right);
+        const sensorBL = parseFloat(reading.sensor_bottom_left);
+        const sensorBR = parseFloat(reading.sensor_bottom_right);
+        const volume = (!isNaN(sensorTL) && !isNaN(sensorTR) && !isNaN(sensorBL) && !isNaN(sensorBR))
+          ? calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR)
+          : 0;
+
+        return {
+          id: reading.id,
+          timestamp,
+          weight: isNaN(weight) ? 0 : weight,
+          volume
+        };
+      });
+
+      // Group organic by 15 minutes
+      const organicGroupBy15Min: Record<string, typeof processedData[0]> = {};
       processedData.forEach(item => {
         const jakartaTimeStr = item.timestamp.toLocaleString('en-US', {
           hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta'
         });
-        const [hourStr, minuteStr] = jakartaTimeStr.split(':');
+        const [, minuteStr] = jakartaTimeStr.split(':');
         const minute = parseInt(minuteStr, 10);
         const roundedMinute = Math.floor(minute / 15) * 15;
         const intervalKey = item.timestamp.toLocaleString('en-US', {
@@ -1107,15 +1120,35 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
           hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta'
         }) + `:${String(roundedMinute).padStart(2, '0')}`;
 
-        if (!groupBy15Min[intervalKey] || item.timestamp > groupBy15Min[intervalKey].timestamp) {
-          groupBy15Min[intervalKey] = item;
+        if (!organicGroupBy15Min[intervalKey] || item.timestamp > organicGroupBy15Min[intervalKey].timestamp) {
+          organicGroupBy15Min[intervalKey] = item;
         }
       });
 
-      const filteredData = Object.values(groupBy15Min).filter(item => item.timestamp >= startDateTime && item.timestamp <= endDateTime);
+      // Group anorganic by 15 minutes
+      const anorganicGroupBy15Min: Record<string, typeof anorganicProcessedData[0]> = {};
+      anorganicProcessedData.forEach(item => {
+        const jakartaTimeStr = item.timestamp.toLocaleString('en-US', {
+          hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta'
+        });
+        const [, minuteStr] = jakartaTimeStr.split(':');
+        const minute = parseInt(minuteStr, 10);
+        const roundedMinute = Math.floor(minute / 15) * 15;
+        const intervalKey = item.timestamp.toLocaleString('en-US', {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta'
+        }) + `:${String(roundedMinute).padStart(2, '0')}`;
 
-      const dataByInterval = new Map<string, typeof processedData[0]>();
-      filteredData.forEach(item => {
+        if (!anorganicGroupBy15Min[intervalKey] || item.timestamp > anorganicGroupBy15Min[intervalKey].timestamp) {
+          anorganicGroupBy15Min[intervalKey] = item;
+        }
+      });
+
+      const organicFilteredData = Object.values(organicGroupBy15Min).filter(item => item.timestamp >= startDateTime && item.timestamp <= endDateTime);
+      const anorganicFilteredData = Object.values(anorganicGroupBy15Min).filter(item => item.timestamp >= startDateTime && item.timestamp <= endDateTime);
+
+      const organicDataByInterval = new Map<string, typeof processedData[0]>();
+      organicFilteredData.forEach(item => {
         const jakartaTimeStr = item.timestamp.toLocaleString('en-US', {
           hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta'
         });
@@ -1123,26 +1156,52 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
         const minute = parseInt(minuteStr, 10);
         const roundedMinute = Math.floor(minute / 15) * 15;
         const key = `${hourStr}:${String(roundedMinute).padStart(2, '0')}`;
-        if (!dataByInterval.has(key) || item.timestamp > dataByInterval.get(key)!.timestamp) {
-          dataByInterval.set(key, item);
+        if (!organicDataByInterval.has(key) || item.timestamp > organicDataByInterval.get(key)!.timestamp) {
+          organicDataByInterval.set(key, item);
         }
       });
 
-      const startHour = startDateTime.getHours();
-      const endHour = endDateTime.getHours();
-      const targetDate = new Date(startDateTime);
+      const anorganicDataByInterval = new Map<string, typeof anorganicProcessedData[0]>();
+      anorganicFilteredData.forEach(item => {
+        const jakartaTimeStr = item.timestamp.toLocaleString('en-US', {
+          hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta'
+        });
+        const [hourStr, minuteStr] = jakartaTimeStr.split(':');
+        const minute = parseInt(minuteStr, 10);
+        const roundedMinute = Math.floor(minute / 15) * 15;
+        const key = `${hourStr}:${String(roundedMinute).padStart(2, '0')}`;
+        if (!anorganicDataByInterval.has(key) || item.timestamp > anorganicDataByInterval.get(key)!.timestamp) {
+          anorganicDataByInterval.set(key, item);
+        }
+      });
+
+      // Parse hour values from applied time inputs (already in Jakarta time)
+      const [startHourInput, startMinuteInput] = appliedStartTime.split(':').map(Number);
+      const [endHourInput, endMinuteInput] = appliedEndTime.split(':').map(Number);
+      const startHour = startHourInput;
+      const endHour = endHourInput;
+
+      // Create a date object for display purposes using Jakarta date
+      const targetDate = new Date(`${appliedStartDate}T00:00:00`);
       targetDate.setHours(0, 0, 0, 0);
 
       for (let hour = startHour; hour <= endHour; hour++) {
-        for (let minute of [0, 15, 30, 45]) {
+        for (const minute of [0, 15, 30, 45]) {
           const key = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-          const data = dataByInterval.get(key);
+          const organicData = organicDataByInterval.get(key);
+          const anorganicData = anorganicDataByInterval.get(key);
 
-          if (data) {
+          const organicValue = organicData ? (totalToggle === "weight" ? organicData.weight : organicData.volume) : 0;
+          const anorganicValue = anorganicData ? (totalToggle === "weight" ? anorganicData.weight : anorganicData.volume) : 0;
+          // For volume, calculate average to keep max at 100%. For weight, sum the values.
+          const totalValue = totalToggle === "volume" ? (organicValue + anorganicValue) / 2 : organicValue + anorganicValue;
+
+          if (organicData || anorganicData) {
+            const timestamp = organicData ? organicData.timestamp : anorganicData!.timestamp;
             chartData.push({
-              time: data.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }),
-              fullTimestamp: `${data.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' })} ${data.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })} (ID #${data.id})`,
-              value: totalToggle === "weight" ? data.weight : data.volume
+              time: timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }),
+              fullTimestamp: `${timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' })} ${timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })} - Organic: ${organicValue.toFixed(2)}, Anorganic: ${anorganicValue.toFixed(2)}`,
+              value: totalValue
             });
           } else {
             const placeholderDate = new Date(targetDate);
@@ -1157,47 +1216,166 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       }
 
     } else if (timeRange === 'daily') {
-      // WEEK VIEW - Hourly intervals
-      const groupByHour: Record<string, typeof processedData[0]> = {};
+      // WEEK VIEW - Hourly intervals - Sum Organic + Anorganic
+      const anorganicProcessedData = anorganicSensorReadings.map(reading => {
+        const timestamp = new Date(reading.timestamp);
+        const weight = parseFloat(reading.weight);
+        const sensorTL = parseFloat(reading.sensor_top_left);
+        const sensorTR = parseFloat(reading.sensor_top_right);
+        const sensorBL = parseFloat(reading.sensor_bottom_left);
+        const sensorBR = parseFloat(reading.sensor_bottom_right);
+        const volume = (!isNaN(sensorTL) && !isNaN(sensorTR) && !isNaN(sensorBL) && !isNaN(sensorBR))
+          ? calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR)
+          : 0;
+
+        return {
+          id: reading.id,
+          timestamp,
+          weight: isNaN(weight) ? 0 : weight,
+          volume
+        };
+      });
+
+      // Group organic by hour
+      const organicGroupByHour: Record<string, typeof processedData[0]> = {};
       processedData.forEach(item => {
         const hourKey = item.timestamp.toLocaleString('en-US', {
           year: 'numeric', month: '2-digit', day: '2-digit',
           hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta'
         });
-        if (!groupByHour[hourKey] || item.timestamp > groupByHour[hourKey].timestamp) {
-          groupByHour[hourKey] = item;
+        if (!organicGroupByHour[hourKey] || item.timestamp > organicGroupByHour[hourKey].timestamp) {
+          organicGroupByHour[hourKey] = item;
         }
       });
 
-      const hourData = Object.values(groupByHour).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-      const filteredData = hourData.filter(item => item.timestamp >= startDateTime && item.timestamp <= endDateTime);
+      // Group anorganic by hour
+      const anorganicGroupByHour: Record<string, typeof anorganicProcessedData[0]> = {};
+      anorganicProcessedData.forEach(item => {
+        const hourKey = item.timestamp.toLocaleString('en-US', {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta'
+        });
+        if (!anorganicGroupByHour[hourKey] || item.timestamp > anorganicGroupByHour[hourKey].timestamp) {
+          anorganicGroupByHour[hourKey] = item;
+        }
+      });
 
-      chartData = filteredData.map(item => ({
-        time: item.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' }) + ' ' + item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }) + ':00',
-        fullTimestamp: `${item.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' })} ${item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })} (ID #${item.id})`,
-        value: totalToggle === "weight" ? item.weight : item.volume
-      }));
+      const organicHourData = Object.values(organicGroupByHour).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      const anorganicHourData = Object.values(anorganicGroupByHour).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      const organicFilteredData = organicHourData.filter(item => item.timestamp >= startDateTime && item.timestamp <= endDateTime);
+      const anorganicFilteredData = anorganicHourData.filter(item => item.timestamp >= startDateTime && item.timestamp <= endDateTime);
+
+      // Create a map to combine organic and anorganic data by hour key
+      const combinedByHour = new Map<string, { organic?: typeof processedData[0], anorganic?: typeof anorganicProcessedData[0] }>();
+
+      organicFilteredData.forEach(item => {
+        const hourKey = item.timestamp.toLocaleString('en-US', {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta'
+        });
+        combinedByHour.set(hourKey, { ...combinedByHour.get(hourKey), organic: item });
+      });
+
+      anorganicFilteredData.forEach(item => {
+        const hourKey = item.timestamp.toLocaleString('en-US', {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta'
+        });
+        combinedByHour.set(hourKey, { ...combinedByHour.get(hourKey), anorganic: item });
+      });
+
+      chartData = Array.from(combinedByHour.values()).map(({ organic, anorganic }) => {
+        const item = organic || anorganic!;
+        const organicValue = organic ? (totalToggle === "weight" ? organic.weight : organic.volume) : 0;
+        const anorganicValue = anorganic ? (totalToggle === "weight" ? anorganic.weight : anorganic.volume) : 0;
+        // For volume, calculate average to keep max at 100%. For weight, sum the values.
+        const totalValue = totalToggle === "volume" ? (organicValue + anorganicValue) / 2 : organicValue + anorganicValue;
+
+        return {
+          time: item.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' }) + ' ' + item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }) + ':00',
+          fullTimestamp: `${item.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' })} ${item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })} - Organic: ${organicValue.toFixed(2)}, Anorganic: ${anorganicValue.toFixed(2)}`,
+          value: totalValue
+        };
+      });
 
     } else if (timeRange === 'weekly') {
-      // MONTH VIEW - Daily intervals
-      const groupByDay: Record<string, typeof processedData[0]> = {};
+      // MONTH VIEW - Daily intervals - Sum Organic + Anorganic
+      const anorganicProcessedData = anorganicSensorReadings.map(reading => {
+        const timestamp = new Date(reading.timestamp);
+        const weight = parseFloat(reading.weight);
+        const sensorTL = parseFloat(reading.sensor_top_left);
+        const sensorTR = parseFloat(reading.sensor_top_right);
+        const sensorBL = parseFloat(reading.sensor_bottom_left);
+        const sensorBR = parseFloat(reading.sensor_bottom_right);
+        const volume = (!isNaN(sensorTL) && !isNaN(sensorTR) && !isNaN(sensorBL) && !isNaN(sensorBR))
+          ? calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR)
+          : 0;
+
+        return {
+          id: reading.id,
+          timestamp,
+          weight: isNaN(weight) ? 0 : weight,
+          volume
+        };
+      });
+
+      // Group organic by day
+      const organicGroupByDay: Record<string, typeof processedData[0]> = {};
       processedData.forEach(item => {
         const dayKey = item.timestamp.toLocaleDateString('en-US', {
           year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Jakarta'
         });
-        if (!groupByDay[dayKey] || item.timestamp > groupByDay[dayKey].timestamp) {
-          groupByDay[dayKey] = item;
+        if (!organicGroupByDay[dayKey] || item.timestamp > organicGroupByDay[dayKey].timestamp) {
+          organicGroupByDay[dayKey] = item;
         }
       });
 
-      const dayData = Object.values(groupByDay).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-      const filteredData = dayData.filter(item => item.timestamp >= startDateTime && item.timestamp <= endDateTime);
+      // Group anorganic by day
+      const anorganicGroupByDay: Record<string, typeof anorganicProcessedData[0]> = {};
+      anorganicProcessedData.forEach(item => {
+        const dayKey = item.timestamp.toLocaleDateString('en-US', {
+          year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Jakarta'
+        });
+        if (!anorganicGroupByDay[dayKey] || item.timestamp > anorganicGroupByDay[dayKey].timestamp) {
+          anorganicGroupByDay[dayKey] = item;
+        }
+      });
 
-      chartData = filteredData.map(item => ({
-        time: item.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' }),
-        fullTimestamp: `${item.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' })} ${item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })} (ID #${item.id})`,
-        value: totalToggle === "weight" ? item.weight : item.volume
-      }));
+      const organicDayData = Object.values(organicGroupByDay).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      const anorganicDayData = Object.values(anorganicGroupByDay).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      const organicFilteredData = organicDayData.filter(item => item.timestamp >= startDateTime && item.timestamp <= endDateTime);
+      const anorganicFilteredData = anorganicDayData.filter(item => item.timestamp >= startDateTime && item.timestamp <= endDateTime);
+
+      // Create a map to combine organic and anorganic data by day key
+      const combinedByDay = new Map<string, { organic?: typeof processedData[0], anorganic?: typeof anorganicProcessedData[0] }>();
+
+      organicFilteredData.forEach(item => {
+        const dayKey = item.timestamp.toLocaleDateString('en-US', {
+          year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Jakarta'
+        });
+        combinedByDay.set(dayKey, { ...combinedByDay.get(dayKey), organic: item });
+      });
+
+      anorganicFilteredData.forEach(item => {
+        const dayKey = item.timestamp.toLocaleDateString('en-US', {
+          year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Jakarta'
+        });
+        combinedByDay.set(dayKey, { ...combinedByDay.get(dayKey), anorganic: item });
+      });
+
+      chartData = Array.from(combinedByDay.values()).map(({ organic, anorganic }) => {
+        const item = organic || anorganic!;
+        const organicValue = organic ? (totalToggle === "weight" ? organic.weight : organic.volume) : 0;
+        const anorganicValue = anorganic ? (totalToggle === "weight" ? anorganic.weight : anorganic.volume) : 0;
+        // For volume, calculate average to keep max at 100%. For weight, sum the values.
+        const totalValue = totalToggle === "volume" ? (organicValue + anorganicValue) / 2 : organicValue + anorganicValue;
+
+        return {
+          time: item.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' }),
+          fullTimestamp: `${item.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' })} ${item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })} - Organic: ${organicValue.toFixed(2)}, Anorganic: ${anorganicValue.toFixed(2)}`,
+          value: totalValue
+        };
+      });
     }
 
     return chartData;
@@ -1239,7 +1417,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
   };
 
   // Optimized: Memoize navigation functions
-  const handlePreviousPeriod = React.useCallback((chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
+  const handlePreviousPeriod = React.useCallback((_chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
     // Calculate new date range based on time range type
     const currentStart = new Date(`${appliedStartDate}T${appliedStartTime}`);
     const currentEnd = new Date(`${appliedEndDate}T${appliedEndTime}`);
@@ -1303,7 +1481,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     devLog(`[Navigation] Previous period: ${formatDate(currentStart)} ${formatTime(currentStart)} to ${formatDate(currentEnd)} ${formatTime(currentEnd)}`);
   }, [appliedStartDate, appliedStartTime, appliedEndDate, appliedEndTime, timeRange, dispatchDateRange]);
 
-  const handleNextPeriod = React.useCallback((chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
+  const handleNextPeriod = React.useCallback((_chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
     // Calculate new date range based on time range type
     const currentStart = new Date(`${appliedStartDate}T${appliedStartTime}`);
     const currentEnd = new Date(`${appliedEndDate}T${appliedEndTime}`);
@@ -1979,7 +2157,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       chartData = [];
 
       for (let hour = startHour; hour <= endHour; hour++) {
-        for (let minute of [0, 15, 30, 45]) {
+        for (const minute of [0, 15, 30, 45]) {
           const key = `${hour}:${String(minute).padStart(2, '0')}`;
           const data = dataByInterval.get(key);
 
@@ -2387,8 +2565,135 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       }
 
       devLog(`[Anorganic Chart Hourly View] Generated ${chartData.length} data points with 1-minute intervals`);
+
+    } else if (timeRange === 'hourly') {
+      // DAY VIEW: Show data from Time Period picker range with 15-minute intervals
+      // Parse the applied start/end dates as Asia/Jakarta timezone and convert to UTC for filtering
+
+      // The input dates are in format "2025-11-19" and times "00:00", "23:59"
+      // We need to interpret them as Jakarta time and convert to UTC for filtering
+      const [startYear, startMonth, startDay] = appliedStartDate.split('-').map(Number);
+      const [startHourInput, startMinuteInput] = appliedStartTime.split(':').map(Number);
+      const [endYear, endMonth, endDay] = appliedEndDate.split('-').map(Number);
+      const [endHourInput, endMinuteInput] = appliedEndTime.split(':').map(Number);
+
+      // Create UTC dates by subtracting 7 hours from Jakarta time
+      // (Jakarta is UTC+7, so Jakarta midnight = 17:00 previous day UTC)
+      const startDateTimeUTC = new Date(Date.UTC(startYear, startMonth - 1, startDay, startHourInput - 7, startMinuteInput));
+      const endDateTimeUTC = new Date(Date.UTC(endYear, endMonth - 1, endDay, endHourInput - 7, endMinuteInput));
+
+      // Also create Jakarta timezone date objects for display purposes
+      const startDateTime = new Date(`${appliedStartDate}T${appliedStartTime}`);
+      const endDateTime = new Date(`${appliedEndDate}T${appliedEndTime}`);
+
+      devLog(`[Anorganic Chart Day View] Time Period Selection - Start: ${startDateTimeUTC.toISOString()}, End: ${endDateTimeUTC.toISOString()}`);
+
+      // Group by 15-minute intervals, select latest reading per interval
+      const groupBy15Min: Record<string, typeof processedData[0]> = {};
+
+      processedData.forEach(item => {
+        // Round down to nearest 15-minute interval
+        const roundedMinute = Math.floor(item.timestamp.getMinutes() / 15) * 15;
+        const intervalKey = item.timestamp.toLocaleString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Jakarta'
+        }) + `:${String(roundedMinute).padStart(2, '0')}`;
+
+        if (!groupBy15Min[intervalKey] || item.timestamp > groupBy15Min[intervalKey].timestamp) {
+          groupBy15Min[intervalKey] = item;
+        }
+      });
+
+      // Filter data based on Time Period picker selection (compare in UTC)
+      const filteredData = Object.values(groupBy15Min).filter(item => {
+        return item.timestamp >= startDateTimeUTC && item.timestamp <= endDateTimeUTC;
+      });
+
+      devLog(`[Anorganic Chart Day View] Filtered ${filteredData.length} data points within Time Period range`);
+
+      // Create a map of existing data by hour and 15-minute interval using Asia/Jakarta timezone
+      const dataByInterval = new Map<string, typeof processedData[0]>();
+      filteredData.forEach(item => {
+        // Use Asia/Jakarta timezone to extract hour and minute consistently
+        const jakartaTimeStr = item.timestamp.toLocaleString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Jakarta'
+        });
+        const [hourStr, minuteStr] = jakartaTimeStr.split(':');
+        const minute = parseInt(minuteStr, 10);
+        const roundedMinute = Math.floor(minute / 15) * 15;
+        const key = `${hourStr}:${String(roundedMinute).padStart(2, '0')}`;
+
+        if (!dataByInterval.has(key) || item.timestamp > dataByInterval.get(key)!.timestamp) {
+          dataByInterval.set(key, item);
+        }
+      });
+
+      // Generate all 15-minute intervals for 24 hours (96 intervals: 24 hours * 4)
+      // Use Jakarta timezone to extract the hour values from the applied times
+      const startHour = startHourInput; // Use the input hour directly (already in Jakarta time)
+      const endHour = endHourInput;
+
+      // Create a date object for display purposes using Jakarta date
+      const targetDate = new Date(`${appliedStartDate}T00:00:00`);
+      targetDate.setHours(0, 0, 0, 0);
+
+      chartData = [];
+
+      for (let hour = startHour; hour <= endHour; hour++) {
+        for (const minute of [0, 15, 30, 45]) {
+          const key = `${hour}:${String(minute).padStart(2, '0')}`;
+          const data = dataByInterval.get(key);
+
+          if (data) {
+            // Has data for this interval
+            chartData.push({
+              time: data.timestamp.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+                timeZone: 'Asia/Jakarta'
+              }),
+              fullTimestamp: `${data.timestamp.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                timeZone: 'Asia/Jakarta'
+              })} ${data.timestamp.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false,
+                timeZone: 'Asia/Jakarta'
+              })} (ID #${data.id})`,
+              value: anorganicToggle === "weight" ? data.weight : data.volume
+            });
+          } else {
+            // No data for this interval, create placeholder with value 0
+            const placeholderDate = new Date(targetDate);
+            placeholderDate.setHours(hour, minute, 0, 0);
+
+            chartData.push({
+              time: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+              fullTimestamp: `${targetDate.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                timeZone: 'Asia/Jakarta'
+              })} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} (No data)`,
+              value: 0
+            });
+          }
+        }
+      }
+
+      devLog(`[Anorganic Chart Day View] Generated ${chartData.length} data points with 15-minute intervals`);
     }
-    // For other time ranges (hourly/daily/weekly), return empty for now
+    // For other time ranges (daily/weekly), return empty for now
     // TODO: Implement other time range views if needed
 
     return chartData;
@@ -2971,6 +3276,8 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
                 data={getTotalChartData()}
                 bgColor="bg-gradient-to-br from-blue-500 to-blue-600"
                 height={180}
+                yAxisDomain={totalToggle === "volume" ? [0, 100] : undefined}
+                valueUnit={totalToggle === "volume" ? "%" : undefined}
               />
 
               <div className="flex justify-center items-center gap-4 mt-2">
