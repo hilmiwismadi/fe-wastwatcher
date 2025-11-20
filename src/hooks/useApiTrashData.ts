@@ -57,7 +57,7 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
       // Choose API endpoint based on timeRange
       let analyticsPromise, organicPromise, anorganicPromise, residuePromise;
       if (timeRange === 'minute') {
-        // For "Hourly" view with minute intervals, use 5-minute data (we'll process it minute-by-minute in the chart)
+        // For "Hourly" view - shows 5-minute intervals (12 data points per hour: XX:00, XX:05, ..., XX:55)
         analyticsPromise = binId
           ? apiService.getFiveMinuteIntervalDataForBin(binId, startDate, endDate)
           : apiService.getFiveMinuteIntervalData(undefined, undefined, startDate, endDate);
@@ -242,7 +242,18 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
 
     const date = new Date(timestamp);
 
-    if (timeRange === 'fiveMinute') {
+    if (timeRange === 'minute') {
+      // For "Hourly" view - 5-minute intervals (12 points: XX:00, XX:05, ..., XX:55)
+      // Use wib_time_display from backend if available
+      if (item.wib_time_display) {
+        return item.wib_time_display;
+      }
+
+      // Fallback: extract from timestamp
+      const minutes = date.getUTCMinutes();
+      const hours = date.getUTCHours();
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    } else if (timeRange === 'fiveMinute') {
       // For "Hourly" view with 5-minute intervals
       // Use wib_time_display from backend if available
       if (item.wib_time_display) {
@@ -310,7 +321,13 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
 
         // Create full timestamp for tooltip
         let fullTimestamp;
-        if (timeRange === 'fiveMinute' && data.wibTimeDisplay) {
+        if (timeRange === 'minute' && data.wibTimeDisplay) {
+          // Use pre-calculated WIB time from backend (HH:MM)
+          fullTimestamp = data.wibTimeDisplay;
+        } else if (timeRange === 'minute') {
+          // Fallback: extract time from timestamp (HH:MM)
+          fullTimestamp = `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+        } else if (timeRange === 'fiveMinute' && data.wibTimeDisplay) {
           // Use pre-calculated WIB time from backend (HH:MM)
           fullTimestamp = data.wibTimeDisplay;
         } else if (timeRange === 'fiveMinute') {
@@ -344,7 +361,11 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
 
       // Format timestamp for tooltip
       let fullTimestamp;
-      if (timeRange === 'fiveMinute' && item.wib_time_display) {
+      if (timeRange === 'minute' && item.wib_time_display) {
+        fullTimestamp = item.wib_time_display;
+      } else if (timeRange === 'minute') {
+        fullTimestamp = `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+      } else if (timeRange === 'fiveMinute' && item.wib_time_display) {
         fullTimestamp = item.wib_time_display;
       } else if (timeRange === 'fiveMinute') {
         fullTimestamp = `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
@@ -372,7 +393,11 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
 
       // Format timestamp for tooltip
       let fullTimestamp;
-      if (timeRange === 'fiveMinute' && item.wib_time_display) {
+      if (timeRange === 'minute' && item.wib_time_display) {
+        fullTimestamp = item.wib_time_display;
+      } else if (timeRange === 'minute') {
+        fullTimestamp = `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+      } else if (timeRange === 'fiveMinute' && item.wib_time_display) {
         fullTimestamp = item.wib_time_display;
       } else if (timeRange === 'fiveMinute') {
         fullTimestamp = `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
@@ -400,7 +425,11 @@ export const useApiTrashData = (startDate?: string, endDate?: string, timeRange?
 
       // Format timestamp for tooltip
       let fullTimestamp;
-      if (timeRange === 'fiveMinute' && item.wib_time_display) {
+      if (timeRange === 'minute' && item.wib_time_display) {
+        fullTimestamp = item.wib_time_display;
+      } else if (timeRange === 'minute') {
+        fullTimestamp = `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+      } else if (timeRange === 'fiveMinute' && item.wib_time_display) {
         fullTimestamp = item.wib_time_display;
       } else if (timeRange === 'fiveMinute') {
         fullTimestamp = `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;

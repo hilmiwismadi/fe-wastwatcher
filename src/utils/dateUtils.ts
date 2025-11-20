@@ -110,10 +110,10 @@ export const getTimeRangeDate = (timeRange: TimeRange) => {
 
   switch (timeRange) {
     case 'minute':
-      // Current hour only (Hourly view - minute intervals) - from :00 to :59
-      // Use the latest available time from dummy data
-      const currentHourMinute = new Date(dummyEndDate);
-      const hourStartMinute = new Date(currentHourMinute);
+      // Hourly view - 5-minute intervals (12 data points per hour: XX:00, XX:05, ..., XX:55)
+      // Use September 15, 2025 at 14:00 (middle of dummy data range with good data coverage)
+      const defaultHourMinute = new Date("2025-09-15T14:00:00");
+      const hourStartMinute = new Date(defaultHourMinute);
       hourStartMinute.setMinutes(0, 0, 0);
       const hourEndMinute = new Date(hourStartMinute);
       hourEndMinute.setMinutes(59, 59, 999);

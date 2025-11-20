@@ -41,6 +41,16 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
     const startDateObj = new Date(newStartDate);
 
     switch (timeRange) {
+      case 'minute': // Hourly view (minute intervals)
+        // Same day
+        onEndDateChange(newStartDate);
+        break;
+
+      case 'fiveMinute': // 5-min intervals view
+        // Same day
+        onEndDateChange(newStartDate);
+        break;
+
       case 'hourly': // Day view
         // Same day
         onEndDateChange(newStartDate);
@@ -66,7 +76,13 @@ export const TimePeriod: React.FC<TimePeriodProps> = ({
 
   const handleStartTimeChange = (newStartTime: string) => {
     onStartTimeChange(newStartTime);
-    // No automatic end time adjustment needed for Day/Week/Month views
+
+    // Auto-update end time for minute/fiveMinute views to show full hour (XX:00 to XX:59)
+    if (timeRange === 'minute' || timeRange === 'fiveMinute') {
+      const [hours] = newStartTime.split(':');
+      const endTime = `${hours}:59`;
+      onEndTimeChange(endTime);
+    }
   };
 
   // Format date and time for display

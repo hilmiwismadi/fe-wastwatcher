@@ -325,7 +325,13 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
       let time;
       let fullTimestamp;
 
-      if (timeRange === 'fiveMinute' && item.wib_time_display) {
+      if (timeRange === 'minute' && item.wib_time_display) {
+        time = item.wib_time_display;
+        fullTimestamp = item.wib_time_display;
+      } else if (timeRange === 'minute') {
+        time = `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+        fullTimestamp = time;
+      } else if (timeRange === 'fiveMinute' && item.wib_time_display) {
         time = item.wib_time_display;
         fullTimestamp = item.wib_time_display;
       } else if (timeRange === 'fiveMinute') {
@@ -370,21 +376,63 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
 
   // Navigate hours for a specific chart
   const handlePreviousHour = (chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
-    if (timeRange !== 'fiveMinute') return;
+    if (timeRange === 'minute') {
+      // For minute view, navigate by changing the start/end time (go back 1 hour)
+      const currentStart = new Date(`${appliedStartDate}T${appliedStartTime}`);
+      const currentEnd = new Date(`${appliedEndDate}T${appliedEndTime}`);
 
-    setHourlyOffsets(prev => ({
-      ...prev,
-      [chartType]: prev[chartType] - 1
-    }));
+      currentStart.setHours(currentStart.getHours() - 1);
+      currentEnd.setHours(currentEnd.getHours() - 1);
+
+      const newStartDate = currentStart.toISOString().split('T')[0];
+      const newStartTime = currentStart.toTimeString().substring(0, 5);
+      const newEndDate = currentEnd.toISOString().split('T')[0];
+      const newEndTime = currentEnd.toTimeString().substring(0, 5);
+
+      setStartDate(newStartDate);
+      setStartTime(newStartTime);
+      setEndDate(newEndDate);
+      setEndTime(newEndTime);
+      setAppliedStartDate(newStartDate);
+      setAppliedStartTime(newStartTime);
+      setAppliedEndDate(newEndDate);
+      setAppliedEndTime(newEndTime);
+    } else if (timeRange === 'fiveMinute') {
+      setHourlyOffsets(prev => ({
+        ...prev,
+        [chartType]: prev[chartType] - 1
+      }));
+    }
   };
 
   const handleNextHour = (chartType: 'total' | 'residue' | 'organic' | 'anorganic') => {
-    if (timeRange !== 'fiveMinute') return;
+    if (timeRange === 'minute') {
+      // For minute view, navigate by changing the start/end time (go forward 1 hour)
+      const currentStart = new Date(`${appliedStartDate}T${appliedStartTime}`);
+      const currentEnd = new Date(`${appliedEndDate}T${appliedEndTime}`);
 
-    setHourlyOffsets(prev => ({
-      ...prev,
-      [chartType]: prev[chartType] + 1
-    }));
+      currentStart.setHours(currentStart.getHours() + 1);
+      currentEnd.setHours(currentEnd.getHours() + 1);
+
+      const newStartDate = currentStart.toISOString().split('T')[0];
+      const newStartTime = currentStart.toTimeString().substring(0, 5);
+      const newEndDate = currentEnd.toISOString().split('T')[0];
+      const newEndTime = currentEnd.toTimeString().substring(0, 5);
+
+      setStartDate(newStartDate);
+      setStartTime(newStartTime);
+      setEndDate(newEndDate);
+      setEndTime(newEndTime);
+      setAppliedStartDate(newStartDate);
+      setAppliedStartTime(newStartTime);
+      setAppliedEndDate(newEndDate);
+      setAppliedEndTime(newEndTime);
+    } else if (timeRange === 'fiveMinute') {
+      setHourlyOffsets(prev => ({
+        ...prev,
+        [chartType]: prev[chartType] + 1
+      }));
+    }
   };
 
   // Get formatted time display for a chart
@@ -884,7 +932,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center gap-2">
           <h3 className={`text-sm font-bold ${binData.titleColor}`}>{binData.title}</h3>
-          {timeRange === 'fiveMinute' && (
+          {(timeRange === 'minute' || timeRange === 'fiveMinute') && (
             <span className="text-xs text-gray-600 font-semibold bg-gray-50 px-2 py-0.5 rounded">
               {getChartTimeDisplay(binData.chartType).startTime} - {getChartTimeDisplay(binData.chartType).endTime}
             </span>
@@ -905,7 +953,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
             height={120}
           />
 
-          {timeRange === 'fiveMinute' && (
+          {(timeRange === 'minute' || timeRange === 'fiveMinute') && (
             <div className="flex justify-center items-center gap-3 mt-2">
               {/* Left Arrow */}
               <button
@@ -1316,6 +1364,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
               onEndTimeChange={setEndTime}
               onTimeRangeChange={handleTimeRangeChange}
               onApply={handleApplyDateRange}
+              excludeRanges={['minute', 'fiveMinute']}
             />
           </div>
 
@@ -1324,7 +1373,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-gray-800">Total Monitoring</h3>
-                {timeRange === 'fiveMinute' && (
+                {(timeRange === 'minute' || timeRange === 'fiveMinute') && (
                   <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded">
                     {getChartTimeDisplay('total').startTime} - {getChartTimeDisplay('total').endTime}
                   </span>
@@ -1346,7 +1395,7 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
                 height={180}
               />
 
-              {timeRange === 'fiveMinute' && (
+              {(timeRange === 'minute' || timeRange === 'fiveMinute') && (
                 <div className="flex justify-center items-center gap-4 mt-2">
                   {/* Left Arrow */}
                   <button

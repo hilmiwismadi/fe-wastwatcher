@@ -296,12 +296,12 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
   }, [fetchAnorganicSensorReadings]);
 
   // Initialize with real-time date range for real sensor data
-  // Default time range is 'daily' (Week view), so use that for initial range
-  const defaultRange = getRealTimeRangeDate('daily');
+  // Default time range is 'minute' (Hourly view), so use that for initial range
+  const defaultRange = getRealTimeRangeDate('minute');
 
   // State management
   const [currentBinIndex, setCurrentBinIndex] = useState(0);
-  const [timeRange, setTimeRange] = useState<TimeRange>('daily');
+  const [timeRange, setTimeRange] = useState<TimeRange>('minute');
 
   // Independent hour offsets for each chart
   const [hourlyOffsets, setHourlyOffsets] = useState({
