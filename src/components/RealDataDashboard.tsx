@@ -341,7 +341,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
   });
 
   // Optimized: Batch date range state updates with useReducer
-  const dateRangeReducer = (state: any, action: any) => {
+  const dateRangeReducer = (state: Record<string, string>, action: { type: string; payload?: Record<string, string> }) => {
     switch (action.type) {
       case 'SET_UI_DATES':
         return { ...state, ...action.payload };
@@ -458,7 +458,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
   const apiEndDate = totalRange.endDate;
 
   // Custom hook for Total chart data (main data source)
-  let mainHookData = useApiTrashData(apiStartDate, apiEndDate, timeRange, trashbinid);
+  const mainHookData = useApiTrashData(apiStartDate, apiEndDate, timeRange, trashbinid);
 
   // Separate hooks for category charts (for independent navigation in Hourly view)
   const residueRange = getChartTimeRange('residue');
