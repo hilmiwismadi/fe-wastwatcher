@@ -2440,6 +2440,35 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     return 'Kosong'; // 0-20%
   };
 
+  // Get Donut Chart data (Weight composition) from sensor readings
+  const getDonutDataFromSensors = () => {
+    const organicData = getCurrentOrganicData();
+    const anorganicData = getCurrentAnorganicData();
+
+    // Convert kg to grams and return as numbers for the chart
+    const organicWeight = parseFloat(String(organicData.weight)) * 1000; // kg to grams
+    const anorganicWeight = parseFloat(String(anorganicData.weight)) * 1000; // kg to grams
+
+    return [
+      { name: "Organic", value: Math.round(organicWeight * 10) / 10, color: "#22c55e" },
+      { name: "Anorganic", value: Math.round(anorganicWeight * 10) / 10, color: "#eab308" },
+    ];
+  };
+
+  // Get Volume Bar Chart data from sensor readings
+  const getVolumeBarDataFromSensors = () => {
+    const organicData = getCurrentOrganicData();
+    const anorganicData = getCurrentAnorganicData();
+
+    const organicVolume = parseFloat(String(organicData.volume));
+    const anorganicVolume = parseFloat(String(anorganicData.volume));
+
+    return [
+      { name: "Organic", value: Math.round(organicVolume * 10) / 10, color: "#22c55e" },
+      { name: "Anorganic", value: Math.round(anorganicVolume * 10) / 10, color: "#eab308" },
+    ];
+  };
+
   const getAnorganicChartDataWithToggle = React.useCallback(() => {
     // Process anorganic sensor readings for chart
     if (!anorganicSensorReadings || anorganicSensorReadings.length === 0) {
@@ -2979,14 +3008,9 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
                 <span className="text-xs sm:text-sm font-medium">Back</span>
               </button>
               <div className="group relative inline-block">
-                <div className="flex items-center gap-2">
-                  <h1 className="text-lg sm:text-xl font-bold text-gray-800 cursor-pointer">
-                    {trashBinName}
-                  </h1>
-                  <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full font-semibold">
-                    REAL DATA
-                  </span>
-                </div>
+                <h1 className="text-lg sm:text-xl font-bold text-gray-800 cursor-pointer">
+                  {trashBinName}
+                </h1>
                 {/* Export button on hover - slides down */}
                 <div ref={exportDropdownRef} className="absolute top-full left-0 mt-1 pointer-events-none group-hover:pointer-events-auto">
                   <button
@@ -3127,6 +3151,17 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
                 <span className="text-xs font-medium text-green-700">{batteryPercentage}%</span>
               </div>
             </div>
+
+            {/* Right: REAL DATA badge - clickable to switch to dummy data view */}
+            <div>
+              <button
+                onClick={() => router.push(`/${binSlug}`)}
+                className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-1 rounded-full font-semibold transition-all shadow-sm hover:shadow-md transform hover:scale-105"
+                aria-label="Switch to dummy data view"
+              >
+                REAL DATA
+              </button>
+            </div>
           </div>
         </div>
 
@@ -3189,10 +3224,10 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
 
             <div className="h-48"> {/* Increased height for bigger donut chart */}
               {compositionToggle === "weight" ? (
-                // Weight - Donut Chart with 50/50 split
+                // Weight - Donut Chart with Organic/Anorganic split
                 <div className="grid grid-cols-2 gap-3 items-start h-full">
                   <div className="space-y-1 pt-2">
-                    {getDonutData().map((item, index) => (
+                    {getDonutDataFromSensors().map((item, index) => (
                       <div
                         key={item.name}
                         className={`flex items-start justify-between p-1 rounded cursor-pointer transition-all ${
@@ -3217,7 +3252,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
                     <ResponsiveContainer width={180} height={180}>
                       <PieChart>
                         <Pie
-                          data={getDonutData()}
+                          data={getDonutDataFromSensors()}
                           cx="50%"
                           cy="50%"
                           innerRadius={45}
@@ -3226,7 +3261,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
                           onMouseEnter={(_, index) => setSelectedSlice(index)}
                           onMouseLeave={() => setSelectedSlice(null)}
                         >
-                          {getDonutData().map((entry, index) => (
+                          {getDonutDataFromSensors().map((entry, index) => (
                             <Cell
                               key={`cell-${index}`}
                               fill={entry.color}
@@ -3251,10 +3286,10 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
                   </div>
                 </div>
               ) : (
-                // Volume - Bar Chart
+                // Volume - Bar Chart with Organic/Anorganic split
                 <div className="h-full">
                   <BarChart
-                    data={getVolumeBarData()}
+                    data={getVolumeBarDataFromSensors()}
                     selectedIndex={selectedSlice}
                     onBarHover={setSelectedSlice}
                   />

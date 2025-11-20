@@ -1157,6 +1157,17 @@ const TrashBinDashboard: React.FC<TrashBinDashboardProps> = ({ binSlug = 'kantin
                 <span className="text-xs font-medium text-green-700">{batteryPercentage}%</span>
               </div>
             </div>
+
+            {/* Right: DUMMY DATA badge - clickable to switch to real data view */}
+            <div>
+              <button
+                onClick={() => router.push(`/realdata/${binSlug}`)}
+                className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-3 py-1 rounded-full font-semibold transition-all shadow-sm hover:shadow-md transform hover:scale-105"
+                aria-label="Switch to real data view"
+              >
+                DUMMY DATA
+              </button>
+            </div>
           </div>
         </div>
 
