@@ -2414,6 +2414,32 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     };
   };
 
+  // Calculate current totals from sensor readings (Organic + Anorganic)
+  const getCurrentTotalsFromSensors = () => {
+    const organicData = getCurrentOrganicData();
+    const anorganicData = getCurrentAnorganicData();
+
+    // Weight: Sum of Organic + Anorganic (in kg, convert to grams for display)
+    const totalWeight = (parseFloat(String(organicData.weight)) + parseFloat(String(anorganicData.weight)));
+
+    // Volume: Average of Organic + Anorganic (to keep max at 100%)
+    const totalVolume = (parseFloat(String(organicData.volume)) + parseFloat(String(anorganicData.volume))) / 2;
+
+    return {
+      weight: (totalWeight * 1000).toFixed(1), // Convert kg to grams
+      volume: totalVolume.toFixed(1)
+    };
+  };
+
+  // Calculate status based on volume percentage with 20% gaps
+  const getStatusFromVolume = (volumePercentage: number): string => {
+    if (volumePercentage >= 81) return 'Penuh'; // 81-100%
+    if (volumePercentage >= 61) return 'Hampir Penuh'; // 61-80%
+    if (volumePercentage >= 41) return 'Menengah'; // 41-60%
+    if (volumePercentage >= 21) return 'Rendah'; // 21-40%
+    return 'Kosong'; // 0-20%
+  };
+
   const getAnorganicChartDataWithToggle = React.useCallback(() => {
     // Process anorganic sensor readings for chart
     if (!anorganicSensorReadings || anorganicSensorReadings.length === 0) {
@@ -3126,19 +3152,24 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
                   <AlertCircle className="w-3 h-3 text-blue-600" />
                   <span className="text-xs font-medium text-gray-700">Status</span>
                 </div>
-                <p className="text-sm text-gray-800 font-medium">{condition}</p>
+                <p className="text-sm text-gray-800 font-medium">
+                  {(() => {
+                    const totals = getCurrentTotalsFromSensors();
+                    return getStatusFromVolume(parseFloat(totals.volume));
+                  })()}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-2 rounded-lg text-white text-center">
                   <h4 className="font-medium text-blue-100 text-xs">Weight</h4>
-                  <p className="text-lg font-bold">{currentTotals.weight}</p>
+                  <p className="text-lg font-bold">{getCurrentTotalsFromSensors().weight}</p>
                   <p className="text-blue-200 text-xs">grams</p>
                 </div>
 
                 <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 p-2 rounded-lg text-white text-center">
                   <h4 className="font-medium text-indigo-100 text-xs">Volume</h4>
-                  <p className="text-lg font-bold">{currentTotals.volume}%</p>
+                  <p className="text-lg font-bold">{getCurrentTotalsFromSensors().volume}%</p>
                   <p className="text-indigo-200 text-xs">capacity</p>
                 </div>
               </div>
