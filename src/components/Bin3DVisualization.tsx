@@ -32,6 +32,17 @@ const SENSOR_POSITIONS = {
   bottomRight: { x: 37.5, y: 37.5 }
 }
 
+// Sensor validation constants
+const SENSOR_ERROR_THRESHOLD = 2000 // cm - readings >= 2000 are considered errors
+const SENSOR_MIN_VALID = 0 // cm - minimum valid reading
+
+// Helper function to validate sensor readings
+const isValidSensorReading = (reading: number): boolean => {
+  return !isNaN(reading) &&
+         reading >= SENSOR_MIN_VALID &&
+         reading < SENSOR_ERROR_THRESHOLD
+}
+
 export default function Bin3DVisualization({
   binType,
   sensorData
@@ -96,13 +107,22 @@ export default function Bin3DVisualization({
     // TL/TR: 9 + 60 = 69cm, BL/BR: 6 + 60 = 66cm
     const sensors = sensorData || { topLeft: 69, topRight: 69, bottomLeft: 66, bottomRight: 66 }
 
+    // Detect sensor errors (readings >= 2000cm)
+    const sensorErrors = {
+      topLeft: !isValidSensorReading(sensors.topLeft),
+      topRight: !isValidSensorReading(sensors.topRight),
+      bottomLeft: !isValidSensorReading(sensors.bottomLeft),
+      bottomRight: !isValidSensorReading(sensors.bottomRight)
+    }
+
     // Konversi distance ke tinggi sampah (dalam cm)
     // SWAPPED: Top row shows bottom data, Bottom row shows top data (swapped left-right)
+    // If sensor has error, show 0 height (empty)
     const wasteHeights = {
-      topLeft: distanceToWasteHeight(sensors.bottomLeft, 'BL'),    // Shows C (bottomLeft data) - baseline 6cm
-      topRight: distanceToWasteHeight(sensors.bottomRight, 'BR'),  // Shows D (bottomRight data) - baseline 6cm
-      bottomLeft: distanceToWasteHeight(sensors.topRight, 'TR'),   // Shows B (topRight data) - baseline 9cm
-      bottomRight: distanceToWasteHeight(sensors.topLeft, 'TL')    // Shows A (topLeft data) - baseline 9cm
+      topLeft: sensorErrors.bottomLeft ? 0 : distanceToWasteHeight(sensors.bottomLeft, 'BL'),    // Shows C (bottomLeft data) - baseline 6cm
+      topRight: sensorErrors.bottomRight ? 0 : distanceToWasteHeight(sensors.bottomRight, 'BR'),  // Shows D (bottomRight data) - baseline 6cm
+      bottomLeft: sensorErrors.topRight ? 0 : distanceToWasteHeight(sensors.topRight, 'TR'),   // Shows B (topRight data) - baseline 9cm
+      bottomRight: sensorErrors.topLeft ? 0 : distanceToWasteHeight(sensors.topLeft, 'TL')    // Shows A (topLeft data) - baseline 9cm
     }
 
     // =====================================================
@@ -337,10 +357,17 @@ export default function Bin3DVisualization({
     // ACAK URUTAN RENDERING (untuk depth variation)
     // =====================================================
 
-    // Define custom colors for organic bin to distinguish sensors
-    const getSensorColors = () => {
-      // For organic bin, use default green colors for all sensors
-      // For other bin types, return undefined to use their default colors
+    // Define custom colors - red for error sensors, default otherwise
+    const getErrorColors = () => {
+      return { primary: '#EF4444', secondary: '#DC2626', light: '#FCA5A5', dark: '#991B1B' }
+    }
+
+    const getSensorColors = (hasError: boolean) => {
+      // If sensor has error, return red colors for visual indication
+      if (hasError) {
+        return getErrorColors()
+      }
+      // Otherwise use default bin colors
       return undefined
     }
 
@@ -353,7 +380,7 @@ export default function Bin3DVisualization({
         label: 'TL',
         distance: sensors.bottomLeft,  // Shows C data at top-left visual position
         sensorPosition: 'BL' as const,  // Uses BL sensor baseline (6cm)
-        colors: getSensorColors(),
+        colors: getSensorColors(sensorErrors.bottomLeft),
         // Tambahkan sedikit offset acak untuk visual variety
         offsetX: Math.sin(sensors.bottomLeft) * 2,
         offsetY: Math.cos(sensors.bottomLeft) * 2
@@ -364,7 +391,7 @@ export default function Bin3DVisualization({
         label: 'TR',
         distance: sensors.bottomRight,  // Shows D data at top-right visual position
         sensorPosition: 'BR' as const,  // Uses BR sensor baseline (6cm)
-        colors: getSensorColors(),
+        colors: getSensorColors(sensorErrors.bottomRight),
         offsetX: Math.sin(sensors.bottomRight + 1) * 2,
         offsetY: Math.cos(sensors.bottomRight + 1) * 2
       },
@@ -374,7 +401,7 @@ export default function Bin3DVisualization({
         label: 'BL',
         distance: sensors.topRight,  // Shows B data at bottom-left visual position
         sensorPosition: 'TR' as const,  // Uses TR sensor baseline (9cm)
-        colors: getSensorColors(),
+        colors: getSensorColors(sensorErrors.topRight),
         offsetX: Math.sin(sensors.topRight + 2) * 2,
         offsetY: Math.cos(sensors.topRight + 2) * 2
       },
@@ -384,7 +411,7 @@ export default function Bin3DVisualization({
         label: 'BR',
         distance: sensors.topLeft,  // Shows A data at bottom-right visual position
         sensorPosition: 'TL' as const,  // Uses TL sensor baseline (9cm)
-        colors: getSensorColors(),
+        colors: getSensorColors(sensorErrors.topLeft),
         offsetX: Math.sin(sensors.topLeft + 3) * 2,
         offsetY: Math.cos(sensors.topLeft + 3) * 2
       }

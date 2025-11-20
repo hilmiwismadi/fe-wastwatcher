@@ -60,6 +60,35 @@ interface SensorReading {
   created_at: string;
 }
 
+// Sensor validation constants
+const SENSOR_ERROR_THRESHOLD = 2000; // cm - readings >= 2000 are considered errors
+const SENSOR_MIN_VALID = 0; // cm - minimum valid reading
+const SENSOR_MAX_VALID = 100; // cm - maximum reasonable reading for 60cm bin
+
+// Helper function to validate sensor readings
+const isValidSensorReading = (reading: number): boolean => {
+  return !isNaN(reading) &&
+         reading >= SENSOR_MIN_VALID &&
+         reading < SENSOR_ERROR_THRESHOLD;
+};
+
+// Helper function to calculate volume percentage from 4 sensor readings with error handling
+const calculateVolumePercentage = (topLeft: number, topRight: number, bottomLeft: number, bottomRight: number): number => {
+  const BIN_HEIGHT = 60; // cm
+  const readings = [topLeft, topRight, bottomLeft, bottomRight];
+  const validReadings = readings.filter(isValidSensorReading);
+
+  // If all sensors are errors, return 0%
+  if (validReadings.length === 0) return 0;
+
+  // Calculate average using only valid sensors
+  const avgDistance = validReadings.reduce((sum, val) => sum + val, 0) / validReadings.length;
+  const fillHeight = BIN_HEIGHT - avgDistance;
+  const percentage = (fillHeight / BIN_HEIGHT) * 100;
+
+  return Math.max(0, Math.min(100, percentage));
+};
+
 const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantinlt1' }) => {
   const router = useRouter();
 
@@ -513,27 +542,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       return Math.max(0, totalWaste); // Ensure non-negative
     };
 
-    // Helper function to calculate volume percentage from 4 sensors
-    const calculateVolumePercentage = (topLeft: number, topRight: number, bottomLeft: number, bottomRight: number): number => {
-      const BIN_HEIGHT = 60; // cm
-
-      // Calculate average of 4 sensors
-      // Example: [49, 48, 37, 7] => 141 / 4 = 35.25
-      const sum = topLeft + topRight + bottomLeft + bottomRight;
-      const avgDistance = sum / 4;
-
-      // Calculate fill height (distance from sensors to trash)
-      // Example: 60 - 35.25 = 24.75
-      const fillHeight = BIN_HEIGHT - avgDistance;
-
-      // Calculate percentage
-      // Example: (24.75 / 60) * 100 = 41.25%
-      const percentage = (fillHeight / BIN_HEIGHT) * 100;
-
-      return Math.max(0, Math.min(100, percentage)); // Clamp between 0-100
-    };
-
-    // Process readings
+    // Process readings (using global calculateVolumePercentage with error handling)
     const processedData = sensorReadings.map(reading => {
       const timestamp = new Date(reading.timestamp);
       const weight = parseFloat(reading.weight);
@@ -544,10 +553,8 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       const sensorBL = parseFloat(reading.sensor_bottom_left);
       const sensorBR = parseFloat(reading.sensor_bottom_right);
 
-      // Calculate volume from 4 sensors
-      const volume = (!isNaN(sensorTL) && !isNaN(sensorTR) && !isNaN(sensorBL) && !isNaN(sensorBR))
-        ? calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR)
-        : 0;
+      // Calculate volume from 4 sensors (global function handles errors >= 2000)
+      const volume = calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR);
 
       return {
         id: reading.id,
@@ -963,17 +970,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       return [];
     }
 
-    // Helper function to calculate volume percentage from 4 sensors
-    const calculateVolumePercentage = (topLeft: number, topRight: number, bottomLeft: number, bottomRight: number): number => {
-      const BIN_HEIGHT = 60; // cm
-      const sum = topLeft + topRight + bottomLeft + bottomRight;
-      const avgDistance = sum / 4;
-      const fillHeight = BIN_HEIGHT - avgDistance;
-      const percentage = (fillHeight / BIN_HEIGHT) * 100;
-      return Math.max(0, Math.min(100, percentage));
-    };
-
-    // Process readings
+    // Process readings (using global calculateVolumePercentage with error handling)
     const processedData = sensorReadings.map(reading => {
       const timestamp = new Date(reading.timestamp);
       const weight = parseFloat(reading.weight);
@@ -981,9 +978,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       const sensorTR = parseFloat(reading.sensor_top_right);
       const sensorBL = parseFloat(reading.sensor_bottom_left);
       const sensorBR = parseFloat(reading.sensor_bottom_right);
-      const volume = (!isNaN(sensorTL) && !isNaN(sensorTR) && !isNaN(sensorBL) && !isNaN(sensorBR))
-        ? calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR)
-        : 0;
+      const volume = calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR);
 
       return {
         id: reading.id,
@@ -1004,7 +999,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
 
     if (timeRange === 'minute') {
       // HOURLY VIEW - Combine Organic + Anorganic by minute
-      // Process anorganic sensor readings too
+      // Process anorganic sensor readings too (with error handling)
       const anorganicProcessedData = anorganicSensorReadings.map(reading => {
         const timestamp = new Date(reading.timestamp);
         const weight = parseFloat(reading.weight);
@@ -1012,9 +1007,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
         const sensorTR = parseFloat(reading.sensor_top_right);
         const sensorBL = parseFloat(reading.sensor_bottom_left);
         const sensorBR = parseFloat(reading.sensor_bottom_right);
-        const volume = (!isNaN(sensorTL) && !isNaN(sensorTR) && !isNaN(sensorBL) && !isNaN(sensorBR))
-          ? calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR)
-          : 0;
+        const volume = calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR);
 
         return {
           id: reading.id,
@@ -1948,7 +1941,7 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       return Math.max(0, Math.min(100, percentage)); // Clamp between 0-100
     };
 
-    // Process readings
+    // Process readings (using global calculateVolumePercentage with error handling)
     const processedData = sensorReadings.map(reading => {
       const timestamp = new Date(reading.timestamp);
       const weight = parseFloat(reading.weight);
@@ -1959,10 +1952,8 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       const sensorBL = parseFloat(reading.sensor_bottom_left);
       const sensorBR = parseFloat(reading.sensor_bottom_right);
 
-      // Calculate volume from 4 sensors
-      const volume = (!isNaN(sensorTL) && !isNaN(sensorTR) && !isNaN(sensorBL) && !isNaN(sensorBR))
-        ? calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR)
-        : 0;
+      // Calculate volume from 4 sensors (global function handles errors >= 2000)
+      const volume = calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR);
 
       return {
         id: reading.id,
@@ -2355,21 +2346,8 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     const sensorBL = parseFloat(latestReading.sensor_bottom_left);
     const sensorBR = parseFloat(latestReading.sensor_bottom_right);
 
-    // Calculate volume percentage from 4 sensors
-    const BIN_HEIGHT = 60; // cm
-    let volumePercentage = 0;
-
-    if (!isNaN(sensorTL) && !isNaN(sensorTR) && !isNaN(sensorBL) && !isNaN(sensorBR)) {
-      // Calculate average of 4 sensors
-      const sum = sensorTL + sensorTR + sensorBL + sensorBR;
-      const avgDistance = sum / 4;
-
-      // Calculate fill height
-      const fillHeight = BIN_HEIGHT - avgDistance;
-
-      // Calculate percentage
-      volumePercentage = Math.max(0, Math.min(100, (fillHeight / BIN_HEIGHT) * 100));
-    }
+    // Calculate volume percentage using helper function with error handling
+    const volumePercentage = calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR);
 
     return {
       weight: isNaN(weight) ? 0 : weight.toFixed(2),
@@ -2392,21 +2370,8 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     const sensorBL = parseFloat(latestReading.sensor_bottom_left);
     const sensorBR = parseFloat(latestReading.sensor_bottom_right);
 
-    // Calculate volume percentage from 4 sensors
-    const BIN_HEIGHT = 60; // cm
-    let volumePercentage = 0;
-
-    if (!isNaN(sensorTL) && !isNaN(sensorTR) && !isNaN(sensorBL) && !isNaN(sensorBR)) {
-      // Calculate average of 4 sensors
-      const sum = sensorTL + sensorTR + sensorBL + sensorBR;
-      const avgDistance = sum / 4;
-
-      // Calculate fill height
-      const fillHeight = BIN_HEIGHT - avgDistance;
-
-      // Calculate percentage
-      volumePercentage = Math.max(0, Math.min(100, (fillHeight / BIN_HEIGHT) * 100));
-    }
+    // Calculate volume percentage using helper function with error handling
+    const volumePercentage = calculateVolumePercentage(sensorTL, sensorTR, sensorBL, sensorBR);
 
     return {
       weight: isNaN(weight) ? 0 : weight.toFixed(2),
