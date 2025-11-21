@@ -116,13 +116,13 @@ export default function Bin3DVisualization({
     }
 
     // Konversi distance ke tinggi sampah (dalam cm)
-    // SWAPPED: Top row shows bottom data, Bottom row shows top data (swapped left-right)
+    // SWAPPED LEFT-RIGHT COMPLETELY: All left positions show right sensor data and vice versa
     // If sensor has error, show 0 height (empty)
     const wasteHeights = {
-      topLeft: sensorErrors.bottomLeft ? 0 : distanceToWasteHeight(sensors.bottomLeft, 'BL'),    // Shows C (bottomLeft data) - baseline 6cm
-      topRight: sensorErrors.bottomRight ? 0 : distanceToWasteHeight(sensors.bottomRight, 'BR'),  // Shows D (bottomRight data) - baseline 6cm
-      bottomLeft: sensorErrors.topRight ? 0 : distanceToWasteHeight(sensors.topRight, 'TR'),   // Shows B (topRight data) - baseline 9cm
-      bottomRight: sensorErrors.topLeft ? 0 : distanceToWasteHeight(sensors.topLeft, 'TL')    // Shows A (topLeft data) - baseline 9cm
+      topLeft: sensorErrors.bottomRight ? 0 : distanceToWasteHeight(sensors.bottomRight, 'BR'),  // Visual TL shows BR data - baseline 6cm
+      topRight: sensorErrors.bottomLeft ? 0 : distanceToWasteHeight(sensors.bottomLeft, 'BL'),   // Visual TR shows BL data - baseline 6cm
+      bottomLeft: sensorErrors.topLeft ? 0 : distanceToWasteHeight(sensors.topLeft, 'TL'),       // Visual BL shows TL data - baseline 9cm
+      bottomRight: sensorErrors.topRight ? 0 : distanceToWasteHeight(sensors.topRight, 'TR')     // Visual BR shows TR data - baseline 9cm
     }
 
     // =====================================================
@@ -372,48 +372,48 @@ export default function Bin3DVisualization({
     }
 
     // Array of cubes dengan data lengkap
-    // SWAPPED: Visual positions swapped with data sources
+    // SWAPPED LEFT-RIGHT COMPLETELY: All visual left positions show right sensor data and vice versa
     const cubes = [
       {
         pos: SENSOR_POSITIONS.topLeft,
         height: wasteHeights.topLeft,
         label: 'TL',
-        distance: sensors.bottomLeft,  // Shows C data at top-left visual position
-        sensorPosition: 'BL' as const,  // Uses BL sensor baseline (6cm)
-        colors: getSensorColors(sensorErrors.bottomLeft),
+        distance: sensors.bottomRight,  // Visual TL shows BR sensor data
+        sensorPosition: 'BR' as const,  // Uses BR sensor baseline (6cm)
+        colors: getSensorColors(sensorErrors.bottomRight),
         // Tambahkan sedikit offset acak untuk visual variety
-        offsetX: Math.sin(sensors.bottomLeft) * 2,
-        offsetY: Math.cos(sensors.bottomLeft) * 2
+        offsetX: Math.sin(sensors.bottomRight) * 2,
+        offsetY: Math.cos(sensors.bottomRight) * 2
       },
       {
         pos: SENSOR_POSITIONS.topRight,
         height: wasteHeights.topRight,
         label: 'TR',
-        distance: sensors.bottomRight,  // Shows D data at top-right visual position
-        sensorPosition: 'BR' as const,  // Uses BR sensor baseline (6cm)
-        colors: getSensorColors(sensorErrors.bottomRight),
-        offsetX: Math.sin(sensors.bottomRight + 1) * 2,
-        offsetY: Math.cos(sensors.bottomRight + 1) * 2
+        distance: sensors.bottomLeft,  // Visual TR shows BL sensor data
+        sensorPosition: 'BL' as const,  // Uses BL sensor baseline (6cm)
+        colors: getSensorColors(sensorErrors.bottomLeft),
+        offsetX: Math.sin(sensors.bottomLeft + 1) * 2,
+        offsetY: Math.cos(sensors.bottomLeft + 1) * 2
       },
       {
         pos: SENSOR_POSITIONS.bottomLeft,
         height: wasteHeights.bottomLeft,
         label: 'BL',
-        distance: sensors.topRight,  // Shows B data at bottom-left visual position
-        sensorPosition: 'TR' as const,  // Uses TR sensor baseline (9cm)
-        colors: getSensorColors(sensorErrors.topRight),
-        offsetX: Math.sin(sensors.topRight + 2) * 2,
-        offsetY: Math.cos(sensors.topRight + 2) * 2
+        distance: sensors.topLeft,  // Visual BL shows TL sensor data
+        sensorPosition: 'TL' as const,  // Uses TL sensor baseline (9cm)
+        colors: getSensorColors(sensorErrors.topLeft),
+        offsetX: Math.sin(sensors.topLeft + 2) * 2,
+        offsetY: Math.cos(sensors.topLeft + 2) * 2
       },
       {
         pos: SENSOR_POSITIONS.bottomRight,
         height: wasteHeights.bottomRight,
         label: 'BR',
-        distance: sensors.topLeft,  // Shows A data at bottom-right visual position
-        sensorPosition: 'TL' as const,  // Uses TL sensor baseline (9cm)
-        colors: getSensorColors(sensorErrors.topLeft),
-        offsetX: Math.sin(sensors.topLeft + 3) * 2,
-        offsetY: Math.cos(sensors.topLeft + 3) * 2
+        distance: sensors.topRight,  // Visual BR shows TR sensor data
+        sensorPosition: 'TR' as const,  // Uses TR sensor baseline (9cm)
+        colors: getSensorColors(sensorErrors.topRight),
+        offsetX: Math.sin(sensors.topRight + 3) * 2,
+        offsetY: Math.cos(sensors.topRight + 3) * 2
       }
     ]
 

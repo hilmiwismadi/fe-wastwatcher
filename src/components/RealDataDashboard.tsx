@@ -348,10 +348,10 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
       case 'SET_APPLIED_DATES':
         return {
           ...state,
-          appliedStartDate: action.payload.startDate,
-          appliedStartTime: action.payload.startTime,
-          appliedEndDate: action.payload.endDate,
-          appliedEndTime: action.payload.endTime
+          appliedStartDate: action.payload?.startDate ?? state.appliedStartDate,
+          appliedStartTime: action.payload?.startTime ?? state.appliedStartTime,
+          appliedEndDate: action.payload?.endDate ?? state.appliedEndDate,
+          appliedEndTime: action.payload?.endTime ?? state.appliedEndTime
         };
       case 'SET_ALL_DATES':
         return { ...state, ...action.payload };
@@ -1547,10 +1547,16 @@ const RealDataDashboard: React.FC<RealDataDashboardProps> = ({ binSlug = 'kantin
     // Format based on time range type
     switch (timeRange) {
       case 'minute': // Hourly view - show hour range (XX:00 - XX:59)
-        return { startTime: range.startTime, endTime: range.endTime };
+        return {
+          startTime: startDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }),
+          endTime: endDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })
+        };
 
       case 'fiveMinute': // 5-min view - show hour range
-        return { startTime: range.startTime, endTime: range.endTime };
+        return {
+          startTime: startDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }),
+          endTime: endDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })
+        };
 
       case 'hourly': // Day view - show full date
         const dayStr = startDateTime.toLocaleDateString('en-US', {
