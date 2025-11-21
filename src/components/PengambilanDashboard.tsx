@@ -569,7 +569,7 @@ const PengambilanDashboard: React.FC = () => {
             <ToggleButton
               value={anorganicToggle}
               onChange={setAnorganicToggle}
-              size="medium"
+              size="normal"
               colorTheme="yellow"
             />
           </div>
